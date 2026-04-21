@@ -364,7 +364,10 @@ cocotb_test_suite(
 
 cocotb_test_suite(
     name = "cocotb_softmax_sfu",
-    simulators = ["verilator"],
+    simulators = [
+        "verilator",
+        "vcs",
+    ],
     testcases = [
         "test_softmax_sfu_64",
         ("test_softmax_sfu_256", "large"),
@@ -382,5 +385,12 @@ cocotb_test_suite(
         ],
         "data": ["softmax_sfu_test.elf"],
     },
+    vcs_build_args = VCS_BUILD_ARGS,
+    vcs_data = glob(["**/*.elf"]) + [
+        "//tests/cocotb:coverage_exclude.cfg",
+    ],
+    vcs_defines = VCS_DEFINES,
+    vcs_test_args = VCS_TEST_ARGS,
+    vcs_verilog_sources = ["//hdl/chisel/src/coralnpu:rvv_core_mini_highmem_axi_cc_library_verilog"],
     verilator_model = "//tests/cocotb:rvv_core_mini_highmem_axi_model",
 )
