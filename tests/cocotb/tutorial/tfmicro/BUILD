@@ -330,6 +330,16 @@ coralnpu_v2_binary(
     ],
 )
 
+coralnpu_v2_binary(
+    name = "softmax_sfu_test",
+    srcs = ["softmax_sfu_test.cc"],
+    dtcm_size_kbytes = 1024,
+    itcm_size_kbytes = 1024,
+    deps = [
+        "//sw/utils",
+    ],
+)
+
 cocotb_test_suite(
     name = "cocotb_logistic",
     simulators = ["verilator"],
@@ -352,3 +362,25 @@ cocotb_test_suite(
     verilator_model = "//tests/cocotb:rvv_core_mini_highmem_axi_model",
 )
 
+cocotb_test_suite(
+    name = "cocotb_softmax_sfu",
+    simulators = ["verilator"],
+    testcases = [
+        "test_softmax_sfu_64",
+        ("test_softmax_sfu_256", "large"),
+    ],
+    tests_kwargs = {
+        "waves": False,
+        "hdl_toplevel": "RvvCoreMiniHighmemAxi",
+        "size": "enormous",
+        "default_testcase_size": "medium",
+        "test_module": ["cocotb_softmax_sfu.py"],
+        "deps": [
+            "//coralnpu_test_utils:core_mini_axi_sim_interface",
+            "//coralnpu_test_utils:sim_test_fixture",
+            "@rules_python//python/runfiles",
+        ],
+        "data": ["softmax_sfu_test.elf"],
+    },
+    verilator_model = "//tests/cocotb:rvv_core_mini_highmem_axi_model",
+)
