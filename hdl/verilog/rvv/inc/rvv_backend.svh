@@ -352,6 +352,9 @@ typedef enum logic [3:0] {
   parameter VFSQRT          =   5'b00000;
   parameter VFRSQRT7        =   5'b00100;
   parameter VFREC7          =   5'b00101;
+  // Custom non-linear unary ops for table-driven SFU bring-up.
+  parameter VFSIGMOID       =   5'b00110;
+  parameter VFTANH          =   5'b00111;
   parameter VFCLASS         =   5'b10000;
   
   // vwfunary0 and vrfunary0

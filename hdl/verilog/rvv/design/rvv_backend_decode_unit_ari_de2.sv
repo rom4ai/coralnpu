@@ -410,7 +410,9 @@ module rvv_backend_decode_unit_ari_de2
                 uop_exe_unit = FDIV;
               end
               VFRSQRT7,
-              VFREC7: begin
+              VFREC7,
+              VFSIGMOID,
+              VFTANH: begin
                 uop_exe_unit = FTBL;
               end
               VFCLASS: begin

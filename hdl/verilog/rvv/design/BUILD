@@ -52,6 +52,7 @@ exports_files(
 
         "rvv_backend_fdiv_wrapper.sv",  # New
 
+        "rvv_backend_nonlinear_sfu.sv",  # New
         "rvv_backend_sqrt7_rec7.sv",  # New
         "rvv_backend_fma_wrapper.sv",  # New
         "rvv_backend_fma.sv",  # New
@@ -72,6 +73,7 @@ exports_files(
         "rvv_backend_mul_unit.sv",
         "rvv_backend_mul_unit_mul8.sv",
         "rvv_backend_mulmac.sv",
+        "rvv_backend_nonlinear_sfu_tb.sv",
         "rvv_backend_pmtrdt.sv",
         "rvv_backend_pmtrdt_unit.sv",
         "rvv_backend_retire.sv",
@@ -154,3 +156,18 @@ vcs_testbench_test(
     module = "MultiFifo_tb",
     deps = ":multififo",
 )
+
+verilog_library(
+    name = "rvv_backend_nonlinear_sfu",
+    srcs = [
+        "rvv_backend_nonlinear_sfu.sv",
+        "//hdl/verilog/rvv/inc:rvv_backend.svh",
+        "//hdl/verilog/rvv/inc:rvv_backend_define.svh",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+vcs_testbench_test(
+    name = "rvv_backend_nonlinear_sfu_tb",
+    srcs = ["rvv_backend_nonlinear_sfu_tb.sv"],
+    module = "rvv_backend_nonlinear_sfu_tb",

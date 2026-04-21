@@ -1360,6 +1360,8 @@ module rvv_backend_decode_unit_ari
               VFSQRT,
               VFRSQRT7,
               VFREC7,
+              VFSIGMOID,
+              VFTANH,
               VFCLASS: begin
                 case(csr_lmul)
                   LMUL1_4,
@@ -2314,6 +2316,8 @@ module rvv_backend_decode_unit_ari
               VFSQRT,
               VFRSQRT7,
               VFREC7,
+              VFSIGMOID,
+              VFTANH,
               VFCLASS: begin
                 case(csr_sew)
                   SEW32: begin
@@ -2941,6 +2945,8 @@ module rvv_backend_decode_unit_ari
               VFSQRT,
               VFRSQRT7,
               VFREC7,
+              VFSIGMOID,
+              VFTANH,
               VFCLASS: begin          
                 check_special = check_vd_overlap_v0;          
               end

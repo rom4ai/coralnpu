@@ -102,11 +102,25 @@ module rvv_backend_fma_wrapper(
   FCVT_TAG_t                                cvt_tag_o;
   logic                                     cvt_result_rdy;
   // ftbl
+  logic                                     tbl_legacy_vld;
+  logic                                     tbl_nonlinear_vld;
+  logic                                     tbl_legacy_uop_rdy;
+  logic                                     tbl_nonlinear_uop_rdy;
+  logic                                     tbl_legacy_result_vld;
+  logic                                     tbl_nonlinear_result_vld;
+  logic     [`VLEN-1:0]                     tbl_legacy_result;
+  logic     [`VLEN-1:0]                     tbl_nonlinear_result;
+  RVFEXP_t  [`VLENW-1:0]                    tbl_legacy_status_o;
+  RVFEXP_t  [`VLENW-1:0]                    tbl_nonlinear_status_o;
+  TAG_t                                     tbl_legacy_tag_o;
+  TAG_t                                     tbl_nonlinear_tag_o;
   logic                                     tbl_result_vld;
   logic     [`VLEN-1:0]                     tbl_result;
   RVFEXP_t  [`VLENW-1:0]                    tbl_status_o;
   TAG_t                                     tbl_tag_o;
   logic                                     tbl_result_rdy;
+  logic                                     tbl_legacy_result_rdy;
+  logic                                     tbl_nonlinear_result_rdy;
   // fcmp&fncmp
   logic                                     allcmp_result_vld_tmp;
   logic                                     allcmp_result_vld;
@@ -149,6 +163,33 @@ module rvv_backend_fma_wrapper(
   assign allcmp_vld = fma_uop_vld & fma_type[1];
   assign cvt_vld    = fma_uop_vld & fma_type[2];
   assign tbl_vld    = fma_uop_vld & fma_type[3];
+  assign tbl_legacy_vld =
+      tbl_vld & ((fma_uop.vs1 == VFRSQRT7) || (fma_uop.vs1 == VFREC7));
+  assign tbl_nonlinear_vld =
+      tbl_vld & ((fma_uop.vs1 == VFSIGMOID) || (fma_uop.vs1 == VFTANH));
+  assign fma_uop_tbl_rdy =
+      tbl_legacy_vld     ? tbl_legacy_uop_rdy :
+      tbl_nonlinear_vld  ? tbl_nonlinear_uop_rdy :
+                           1'b0;
+  assign tbl_result_vld           = tbl_legacy_result_vld | tbl_nonlinear_result_vld;
+  assign tbl_legacy_result_rdy    = tbl_result_rdy & tbl_legacy_result_vld;
+  assign tbl_nonlinear_result_rdy = tbl_result_rdy & tbl_nonlinear_result_vld;
+
+  always_comb begin
+    tbl_result = tbl_nonlinear_result;
+    tbl_tag_o  = tbl_nonlinear_tag_o;
+    for (int j = 0; j < `VLENW; j++) begin
+      tbl_status_o[j] = tbl_nonlinear_status_o[j];
+    end
+
+    if (tbl_legacy_result_vld) begin
+      tbl_result = tbl_legacy_result;
+      tbl_tag_o  = tbl_legacy_tag_o;
+      for (int j = 0; j < `VLENW; j++) begin
+        tbl_status_o[j] = tbl_legacy_status_o[j];
+      end
+    end
+  end
 
 `ifdef ZVFBFWMA_ON
   assign vd_eew     = (fma_uop.uop_funct6.ari_funct6 == VFUNARY0 && fma_uop.vs1 == VFNCVTBF16)? EEW16 : EEW32;
@@ -572,7 +613,7 @@ module rvv_backend_fma_wrapper(
     rvv_backend_sqrt7_rec7 #(
       .TagType            (TAG_t)
     )
-    tbl (
+    tbl_legacy (
       .clk                (clk),
       .rst_n              (rst_n),
       // Input signals
@@ -581,16 +622,40 @@ module rvv_backend_fma_wrapper(
       .rnd_mode_i         (fma_uop.frm),
       .tag_i              (tag_ftbl),         
       // Input Handshake
-      .in_valid_i         (tbl_vld),
-      .in_ready_o         (fma_uop_tbl_rdy),
+      .in_valid_i         (tbl_legacy_vld),
+      .in_ready_o         (tbl_legacy_uop_rdy),
       .flush_i            (trap_flush_rvv),
       // Output signals
-      .result_o           (tbl_result[0+:`WORD_WIDTH]),   
-      .tbl_status_o       (tbl_status_o[0]),
-      .tag_o              (tbl_tag_o),
+      .result_o           (tbl_legacy_result[0+:`WORD_WIDTH]),   
+      .tbl_status_o       (tbl_legacy_status_o[0]),
+      .tag_o              (tbl_legacy_tag_o),
       // Output handshake
-      .out_valid_o        (tbl_result_vld),
-      .out_ready_i        (tbl_result_rdy)
+      .out_valid_o        (tbl_legacy_result_vld),
+      .out_ready_i        (tbl_legacy_result_rdy)
+    );
+
+    rvv_backend_nonlinear_sfu #(
+      .TagType            (TAG_t)
+    )
+    tbl_nonlinear (
+      .clk                (clk),
+      .rst_n              (rst_n),
+      // Input signals
+      .operand_i          (src2[0+:`WORD_WIDTH]), // 1 operand
+      .vs1_i              (fma_uop.vs1),
+      .rnd_mode_i         (fma_uop.frm),
+      .tag_i              (tag_ftbl),
+      // Input Handshake
+      .in_valid_i         (tbl_nonlinear_vld),
+      .in_ready_o         (tbl_nonlinear_uop_rdy),
+      .flush_i            (trap_flush_rvv),
+      // Output signals
+      .result_o           (tbl_nonlinear_result[0+:`WORD_WIDTH]),
+      .tbl_status_o       (tbl_nonlinear_status_o[0]),
+      .tag_o              (tbl_nonlinear_tag_o),
+      // Output handshake
+      .out_valid_o        (tbl_nonlinear_result_vld),
+      .out_ready_i        (tbl_nonlinear_result_rdy)
     );
 
     for(i=1;i<`VLENW;i++) begin:sub_unit      
@@ -731,7 +796,7 @@ module rvv_backend_fma_wrapper(
   
       rvv_backend_sqrt7_rec7 #(
       )
-      tbl (
+      tbl_legacy (
         .clk                (clk),
         .rst_n              (rst_n),
         // Input signals
@@ -740,16 +805,39 @@ module rvv_backend_fma_wrapper(
         .rnd_mode_i         (fma_uop.frm),
         .tag_i              ('0),
         // Input Handshake
-        .in_valid_i         (tbl_vld),
+        .in_valid_i         (tbl_legacy_vld),
         .in_ready_o         (),
         .flush_i            (trap_flush_rvv),
         // Output signals
-        .result_o           (tbl_result[i*`WORD_WIDTH+:`WORD_WIDTH]),   
-        .tbl_status_o       (tbl_status_o[i]),
+        .result_o           (tbl_legacy_result[i*`WORD_WIDTH+:`WORD_WIDTH]),   
+        .tbl_status_o       (tbl_legacy_status_o[i]),
         .tag_o              (),
         // Output handshake
         .out_valid_o        (),
-        .out_ready_i        (tbl_result_rdy)
+        .out_ready_i        (tbl_legacy_result_rdy)
+      );
+
+      rvv_backend_nonlinear_sfu #(
+      )
+      tbl_nonlinear (
+        .clk                (clk),
+        .rst_n              (rst_n),
+        // Input signals
+        .operand_i          (src2[i*`WORD_WIDTH+:`WORD_WIDTH]), // 1 operand
+        .vs1_i              (fma_uop.vs1),
+        .rnd_mode_i         (fma_uop.frm),
+        .tag_i              ('0),
+        // Input Handshake
+        .in_valid_i         (tbl_nonlinear_vld),
+        .in_ready_o         (),
+        .flush_i            (trap_flush_rvv),
+        // Output signals
+        .result_o           (tbl_nonlinear_result[i*`WORD_WIDTH+:`WORD_WIDTH]),
+        .tbl_status_o       (tbl_nonlinear_status_o[i]),
+        .tag_o              (),
+        // Output handshake
+        .out_valid_o        (),
+        .out_ready_i        (tbl_nonlinear_result_rdy)
       );
     end
   endgenerate
