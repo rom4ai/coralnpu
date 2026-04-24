@@ -60,6 +60,7 @@ logic [`VLEN-1:0]                     mac_src2_mux;
 logic [`VLEN-1:0]                     mac_src1_mux;
 logic [`VLENB-1:0]                    mac_src2_is_signed_extend;
 logic [`VLENB-1:0]                    mac_src1_is_signed_extend;
+RVVPEMode_e                           mac_pe_mode;
 
 logic [`VLENB-1:0][`BYTE_WIDTH-1:0]   mac8_in0;
 logic [`VLENB-1:0]                    mac8_in0_is_signed;
@@ -159,6 +160,11 @@ assign mac_uop_index     = rs2mac_uop_data.uop_index;
 `ifdef TB_SUPPORT
 assign mac_uop_pc        = rs2mac_uop_data.uop_pc;
 `endif
+
+// Legacy integer mul/mac keeps using the existing 8-bit partial-product
+// decomposition. Later RVV-v2 stories will plumb dynamic mixed-precision mode
+// metadata into this wrapper.
+assign mac_pe_mode = RVV_PE_MODE_MXINT8;
 
 // Global EU control
 always@(*) begin
@@ -659,26 +665,27 @@ always_comb begin
 
   case (mac_top_vs_eew) 
     EEW8: begin
-      for(int i=0;i<`VLENW;i++) begin
-        mac8_en[16*i]    = mac_pipe_data_en;
-        mac8_en[16*i+5]  = mac_pipe_data_en;
-        mac8_en[16*i+10] = mac_pipe_data_en;
-        mac8_en[16*i+15] = mac_pipe_data_en;
+      for(int lane_idx=0;lane_idx<`VLENW;lane_idx++) begin
+        mac8_en[16*lane_idx]    = mac_pipe_data_en;
+        mac8_en[16*lane_idx+5]  = mac_pipe_data_en;
+        mac8_en[16*lane_idx+10] = mac_pipe_data_en;
+        mac8_en[16*lane_idx+15] = mac_pipe_data_en;
       end
     end
     EEW16: begin
-      for(int i=0;i<`VLENW;i++) begin
-        mac8_en[16*i]    = mac_pipe_data_en;
-        mac8_en[16*i+1]  = mac_pipe_data_en;
-        mac8_en[16*i+4]  = mac_pipe_data_en;
-        mac8_en[16*i+5]  = mac_pipe_data_en;
-        mac8_en[16*i+10] = mac_pipe_data_en;
-        mac8_en[16*i+11] = mac_pipe_data_en;
-        mac8_en[16*i+14] = mac_pipe_data_en;
-        mac8_en[16*i+15] = mac_pipe_data_en;
+      for(int lane_idx=0;lane_idx<`VLENW;lane_idx++) begin
+        mac8_en[16*lane_idx]    = mac_pipe_data_en;
+        mac8_en[16*lane_idx+1]  = mac_pipe_data_en;
+        mac8_en[16*lane_idx+4]  = mac_pipe_data_en;
+        mac8_en[16*lane_idx+5]  = mac_pipe_data_en;
+        mac8_en[16*lane_idx+10] = mac_pipe_data_en;
+        mac8_en[16*lane_idx+11] = mac_pipe_data_en;
+        mac8_en[16*lane_idx+14] = mac_pipe_data_en;
+        mac8_en[16*lane_idx+15] = mac_pipe_data_en;
       end
     end
     EEW32: mac8_en = {(`VLEN/2){mac_pipe_data_en}};
+    default: mac8_en = 'b0;
   endcase
 end
 
@@ -688,14 +695,19 @@ generate
   for (z=0; z<`VLENW; z=z+1) begin: cnt_tiles
     for (x=0; x<`WORD_WIDTH/`BYTE_WIDTH; x=x+1) begin: cnt_src0_axis
       for (y=0; y<`WORD_WIDTH/`BYTE_WIDTH; y=y+1) begin: cnt_src1_axis
-        rvv_backend_mul_unit_mul8 
-        u_mul8 (
-          .res            (mac8_out[z*16+y*4+x]     ), //16bit out
-          .src0           (mac8_in0[z*4+x]          ), 
-          .src0_is_signed (mac8_in0_is_signed[z*4+x]),
-          .src1           (mac8_in1[z*4+y]          ), 
-          .src1_is_signed (mac8_in1_is_signed[z*4+y])
+        logic [`HWORD_WIDTH-1:0] mac_pe_res;
+
+        rvv_backend_pe_wrapper
+        u_pe (
+          .pe_mode        (mac_pe_mode                                  ),
+          .src0           ({{(`HWORD_WIDTH-`BYTE_WIDTH){1'b0}}, mac8_in0[z*4+x]}),
+          .src0_is_signed (mac8_in0_is_signed[z*4+x]                    ),
+          .src1           ({{(`HWORD_WIDTH-`BYTE_WIDTH){1'b0}}, mac8_in1[z*4+y]}),
+          .src1_is_signed (mac8_in1_is_signed[z*4+y]                    ),
+          .res            (mac_pe_res                                   )
         );
+
+        assign mac8_out[z*16+y*4+x] = mac_pe_res;
 
         edff #(
           .T              (logic [`HWORD_WIDTH-1:0])
@@ -798,9 +810,12 @@ always@(*) begin
   end
 end
 
+// Preserve the legacy X-tolerant result select behavior while the mixed-
+// precision wrapper is still hard-wired to the existing integer datapath.
+/* verilator lint_off CASEX */
 always_comb begin
   casex({is_vmac_d1,mac_is_widen_d1,is_vsmul_d1,mac_is_widen_d1})
-    4'b11?? : mac_rslt_eew8_d1 = vmac_rslt_eew8_widen_d1[`VLEN-1:0];  //mac widen 
+    4'b11?? : mac_rslt_eew8_d1 = vmac_rslt_eew8_widen_d1[`VLEN-1:0];  //mac widen
     4'b10?? : mac_rslt_eew8_d1 = vmac_rslt_eew8_no_widen_d1;          //mac normal
     4'b0?1? : mac_rslt_eew8_d1 = vsmul_rslt_eew8_d1;                  //vsmul
     4'b0?01 : mac_rslt_eew8_d1 = mac_rslt_eew8_widen_d1[`VLEN-1:0];   //mul widen
@@ -870,7 +885,7 @@ end
 
 always_comb begin
   casex({is_vmac_d1,mac_is_widen_d1,is_vsmul_d1,mac_is_widen_d1})
-    4'b11?? : mac_rslt_eew16_d1 = vmac_rslt_eew16_widen_d1[`VLEN-1:0];  //mac widen 
+    4'b11?? : mac_rslt_eew16_d1 = vmac_rslt_eew16_widen_d1[`VLEN-1:0];  //mac widen
     4'b10?? : mac_rslt_eew16_d1 = vmac_rslt_eew16_no_widen_d1;          //mac normal
     4'b0?1? : mac_rslt_eew16_d1 = vsmul_rslt_eew16_d1;                  //vsmul
     4'b0?01 : mac_rslt_eew16_d1 = mac_rslt_eew16_widen_d1[`VLEN-1:0];   //mul widen
@@ -880,8 +895,8 @@ always_comb begin
 end
 
 always_comb begin
-  for(int i=0;i<`VLENH;i++) begin
-    update_vxsat_eew16_d1[2*i +: 2] = {vsmul_sat_eew16_d1[i],1'b0}; 
+  for(int sat_idx16=0;sat_idx16<`VLENH;sat_idx16++) begin
+    update_vxsat_eew16_d1[2*sat_idx16 +: 2] = {vsmul_sat_eew16_d1[sat_idx16],1'b0}; 
   end
 end
 
@@ -945,7 +960,7 @@ end
 
 always_comb begin
   casex({is_vmac_d1,mac_is_widen_d1,is_vsmul_d1,mac_is_widen_d1})
-    4'b11?? : mac_rslt_eew32_d1 = vmac_rslt_eew32_widen_d1[`VLEN-1:0];  //mac widen 
+    4'b11?? : mac_rslt_eew32_d1 = vmac_rslt_eew32_widen_d1[`VLEN-1:0];  //mac widen
     4'b10?? : mac_rslt_eew32_d1 = vmac_rslt_eew32_no_widen_d1;          //mac normal
     4'b0?1? : mac_rslt_eew32_d1 = vsmul_rslt_eew32_d1;                  //vsmul
     4'b0?01 : mac_rslt_eew32_d1 = mac_rslt_eew32_widen_d1[`VLEN-1:0];   //mul widen
@@ -953,10 +968,11 @@ always_comb begin
     default : mac_rslt_eew32_d1 = 'b0;
   endcase
 end
+/* verilator lint_on CASEX */
 
 always_comb begin
-  for(int i=0;i<`VLENW;i++) begin
-    update_vxsat_eew32_d1[4*i +: 4] = {vsmul_sat_eew32_d1[i],3'b0}; 
+  for(int sat_idx32=0;sat_idx32<`VLENW;sat_idx32++) begin
+    update_vxsat_eew32_d1[4*sat_idx32 +: 4] = {vsmul_sat_eew32_d1[sat_idx32],3'b0}; 
   end
 end
 

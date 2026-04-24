@@ -133,6 +133,21 @@ typedef enum logic [2:0] {
   EEW64
 } EEW_e;
 
+// RVV-v2 mixed-precision PE mode select. Story RVV2-001 adds the structural
+// wrapper first; decode/packing semantics are extended in later stories.
+typedef enum logic [3:0] {
+  RVV_PE_MODE_MXINT4 = 4'd0,
+  RVV_PE_MODE_MXINT6 = 4'd1,
+  RVV_PE_MODE_MXINT8 = 4'd2,
+  RVV_PE_MODE_MXFP4  = 4'd3,
+  RVV_PE_MODE_MXFP6  = 4'd4,
+  RVV_PE_MODE_MXFP8  = 4'd5,
+  RVV_PE_MODE_FP4    = 4'd6,
+  RVV_PE_MODE_FP8    = 4'd7,
+  RVV_PE_MODE_FP16   = 4'd8,
+  RVV_PE_MODE_BF16   = 4'd9
+} RVVPEMode_e;
+
 // the legal RVVCmd after decoding
 typedef struct packed {
   RVVCmd                          cmd;

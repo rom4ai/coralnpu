@@ -42,6 +42,10 @@ UNUSED += $(STD_PATH)/fifo_flopped_2w2r.sv	\
 					$(STD_PATH)/openFifo8_flopped_2w2r.sv	\
 					$(STD_PATH)/openFifo4_flopped_ptr.sv
 					
+FP_UNUSED = $(DESIGN_PATH)/rvv_backend_fdiv_wrapper.sv \
+					 $(DESIGN_PATH)/rvv_backend_fma.sv \
+					 $(DESIGN_PATH)/rvv_backend_fma_wrapper.sv \
+					 $(DESIGN_PATH)/rvv_backend_freduction.sv
 
 # ------------------------------------------------------------------
 # scfg
@@ -57,26 +61,35 @@ ifeq ($(scfg), rvv_backend)
 	RTL_DEFINE = +define+TB_SUPPORT
 	RTL_DEFINE += +define+ASSERT_ON
 	RTL_DEFINE += +define+RVV_CONFIG_SVH +define+ISSUE_3_READ_PORT_6
+	RTL_DEFINE += +define+DISPATCH3 +define+ARBITER_ON +define+VLEN_128
 endif
 ifeq ($(scfg), rvv_backend_i2rp4)
 	RTL_DEFINE = +define+TB_SUPPORT
 	RTL_DEFINE += +define+ASSERT_ON
 	RTL_DEFINE += +define+RVV_CONFIG_SVH +define+ISSUE_2_READ_PORT_4
+	RTL_DEFINE += +define+DISPATCH2 +define+ARBITER_ON +define+VLEN_128
 endif
 ifeq ($(scfg), rvv_backend_i2rp6)
 	RTL_DEFINE = +define+TB_SUPPORT
 	RTL_DEFINE += +define+ASSERT_ON
 	RTL_DEFINE += +define+RVV_CONFIG_SVH +define+ISSUE_2_READ_PORT_6
+	RTL_DEFINE += +define+DISPATCH2 +define+ARBITER_ON +define+VLEN_128
 endif
 ifeq ($(scfg), rvv_backend_i3rp6)
 	RTL_DEFINE = +define+TB_SUPPORT
 	RTL_DEFINE += +define+ASSERT_ON
 	RTL_DEFINE += +define+RVV_CONFIG_SVH +define+ISSUE_3_READ_PORT_6
+	RTL_DEFINE += +define+DISPATCH3 +define+ARBITER_ON +define+VLEN_128
 endif
 ifeq ($(scfg), rvv_backend_bringup)
 	RTL_DEFINE = +define+TB_BRINGUP+TB_SUPPORT
 	RTL_DEFINE += +define+ASSERT_ON
+	RTL_DEFINE += +define+DISPATCH3 +define+ARBITER_ON +define+VLEN_128
 	RTLFILES = $(DESIGN_PATH)/rvv_backend.sv
+endif
+
+ifeq ($(findstring +define+ZVE32F_ON,$(RTL_DEFINE)),)
+UNUSED += $(FP_UNUSED)
 endif
 
 # ------------------------------------------------------------------

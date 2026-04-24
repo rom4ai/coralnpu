@@ -91,6 +91,7 @@ module rvv_backend_alu_unit_execution_p1
   logic   [`VLEN-1:0]                     cmp_res_tmp;
   logic   [`VLEN-1:0]                     cmp_res;
   logic   [`VLEN-1:0]                     vmadcsbc_res;
+  logic   [`VL_WIDTH-1:0]                 cmp_vlmax;
 
 //
 // prepare source data to calculate    
@@ -115,6 +116,16 @@ module rvv_backend_alu_unit_execution_p1
   assign cout8          = alu_uop.vsat_cout.cout;
   assign last_uop_valid = alu_uop.last_uop_valid;
   assign uop_index      = alu_uop.uop_index;
+
+  always_comb begin
+    cmp_vlmax = '0;
+    case (vs2_eew)
+      EEW8:  cmp_vlmax = (`VL_WIDTH)'(uop_index + 1'b1) << 4;
+      EEW16: cmp_vlmax = (`VL_WIDTH)'(uop_index + 1'b1) << 3;
+      EEW32: cmp_vlmax = (`VL_WIDTH)'(uop_index + 1'b1) << 2;
+      default: cmp_vlmax = '0;
+    endcase
+  end
 
   generate
     // prepare valid signal 
@@ -658,8 +669,12 @@ module rvv_backend_alu_unit_execution_p1
       assign tail_elements    = vl[$clog2(`VLEN)] ? 'b0 : tail_elements_tmp;
 
       for(j=0;j<`VLEN;j++) begin: CMP_MERGE
-        assign cmp_res[j]       = !(vstart_elements[j]|tail_elements[j]) & (vm|v0_data[j]) ? cmp_res_tmp[j] : vd_data[j];
-        assign vmadcsbc_res[j]  = vstart_elements[j]|tail_elements[j] ? vd_data[j] : cmp_res_tmp[j];
+        assign cmp_res[j] = vstart_elements[j] ? vd_data[j] :
+                            ((j < cmp_vlmax) && (vm | v0_data[j])) ? cmp_res_tmp[j] :
+                            vd_data[j];
+        assign vmadcsbc_res[j] = vstart_elements[j] ? vd_data[j] :
+                                 ((j < cmp_vlmax) && (vm | v0_data[j])) ? cmp_res_tmp[j] :
+                                 vd_data[j];
       end
     end
 

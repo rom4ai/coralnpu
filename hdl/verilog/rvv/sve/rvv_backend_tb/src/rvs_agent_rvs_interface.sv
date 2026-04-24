@@ -21,7 +21,7 @@ interface rvs_interface (input bit clk, ref logic rst_n);
   logic         [`NUM_RT_UOP-1:0] rt_vrf_valid_rob2rt;
 
 // write back to XRF. RVS arbitrates write ports of XRF by itself.
-  RT2XRF_t      [`NUM_RT_UOP-1:0] rt_xrf_rvv2rvs      ;
+  RT2RVS_t      [`NUM_RT_UOP-1:0] rt_xrf_rvv2rvs      ;
   logic         [`NUM_RT_UOP-1:0] rt_xrf_valid_rvv2rvs;
   logic         [`NUM_RT_UOP-1:0] rt_xrf_ready_rvs2rvv;
 

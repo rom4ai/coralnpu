@@ -37,6 +37,8 @@ module rvv_backend_top();
   rvv_intern_interface rvv_intern_if(clk,rst_n);
   
   rvv_backend_tb_mod test(); 
+  logic [`NUM_RT_UOP-1:0] rt_valid_rob2rt_o;
+  ROB2RT_t [`NUM_RT_UOP-1:0] rt_rob2rt_o;
   
   rvv_backend DUT (
     .clk(clk),
@@ -47,9 +49,9 @@ module rvv_backend_top();
     .insts_ready_cq2rvs       (rvs_if.insts_ready_cq2rvs    ),
     .remaining_count_cq2rvs   (),
     
-    .rt_xrf_rvv2rvs           (rvs_if.rt_xrf_rvv2rvs        ),
+    .rt_rvs_rvv2rvs           (rvs_if.rt_xrf_rvv2rvs        ),
     .rt_xrf_valid_rvv2rvs     (rvs_if.rt_xrf_valid_rvv2rvs  ),
-    .rt_xrf_ready_rvs2rvv     (rvs_if.rt_xrf_ready_rvs2rvv  ),
+    .rt_rvs_ready_rvs2rvv     (rvs_if.rt_xrf_ready_rvs2rvv  ),
 
     .uop_lsu_valid_rvv2lsu    (lsu_if.uop_lsu_valid_rvv2lsu ),
     .uop_lsu_rvv2lsu          (lsu_if.uop_lsu_rvv2lsu       ),
@@ -70,6 +72,8 @@ module rvv_backend_top();
     .vcsr_valid               (rvs_if.vcsr_valid            ),
     .vector_csr               (rvs_if.vector_csr            ),
     .vcsr_ready               (rvs_if.vcsr_ready            ),
+    .rd_valid_rob2rt_o        (rt_valid_rob2rt_o      ),
+    .rd_rob2rt_o              (rt_rob2rt_o            ),
     .rvv_idle                 (rvs_if.rvv_idle              ) 
   );
 
@@ -77,9 +81,11 @@ module rvv_backend_top();
   logic [`NUM_RT_UOP-1:0] rt_last_uop;
   always_comb begin
     for (int i=0; i<`NUM_RT_UOP; i++) begin
-      rt_last_uop[i] = `ROB_PATH.rd_valid_rob2rt[i] & `ROB_PATH.rd_ready_rt2rob[i] & `ROB_PATH.uop_rob2rt[i].last_uop_valid;
+      rt_last_uop[i] = rt_valid_rob2rt_o[i] &
+                       DUT.rd_ready_rt2rob[i] &
+                       rt_rob2rt_o[i].last_uop_valid;
     end
-    rt_uop = `ROB_PATH.rd_valid_rob2rt & `ROB_PATH.rd_ready_rt2rob;
+    rt_uop = rt_valid_rob2rt_o & DUT.rd_ready_rt2rob;
   end
 
 // rvs interface -----------------------------------------------------
@@ -89,15 +95,17 @@ module rvv_backend_top();
   generate 
     genvar gv_i;
     for(gv_i=0; gv_i<`NUM_DE_INST; gv_i++) begin
-      assign rvs_if.inst_correct[gv_i] = `DECODE_PATH.pop_de2cq[gv_i] &&  (|`DECODE_PATH.uop_valid_de2uq[gv_i]);
-      assign rvs_if.inst_discard[gv_i] = `DECODE_PATH.pop_de2cq[gv_i] && !(|`DECODE_PATH.uop_valid_de2uq[gv_i]);
+      // DE2 discard/correct bookkeeping must stay aligned with the legal
+      // command that actually feeds uop generation, not the earlier CQ pop.
+      assign rvs_if.inst_correct[gv_i] = DUT.pop_de2lcq[gv_i] &&  (|DUT.u_decode_de2.de_uop_valid[gv_i]);
+      assign rvs_if.inst_discard[gv_i] = DUT.pop_de2lcq[gv_i] && !(|DUT.u_decode_de2.de_uop_valid[gv_i]);
+      assign rvs_if.inst_pkg_cq2de[gv_i] = DUT.lcmd_lcq2de[gv_i].cmd;
     end
   endgenerate
-  assign rvs_if.inst_pkg_cq2de = `DECODE_PATH.inst_pkg_cq2de;
   
-  // ROB dataout 
-  assign rvs_if.rd_valid_rob2rt = DUT.rd_valid_rob2rt;
-  assign rvs_if.rd_rob2rt       = DUT.rd_rob2rt      ;
+  // ROB dataout
+  assign rvs_if.rd_valid_rob2rt = rt_valid_rob2rt_o;
+  assign rvs_if.rd_rob2rt       = rt_rob2rt_o;
   assign rvs_if.rd_ready_rt2rob = DUT.rd_ready_rt2rob;
 
 
@@ -110,22 +118,16 @@ module rvv_backend_top();
 `endif
       rvs_if.rt_vrf_data_rob2rt[i].rt_data  = `RT_VRF_PATH.rt2vrf_write_data[i].rt_data;
       rvs_if.rt_vrf_data_rob2rt[i].rt_index = `RT_VRF_PATH.rt2vrf_write_data[i].rt_index;
+      rvs_if.rt_vrf_data_rob2rt[i].rt_strobe = `RT_VRF_PATH.rt2vrf_write_data[i].rt_strobe;
     end
   end
-  assign rvs_if.rt_vrf_data_rob2rt[0].rt_strobe  = `RT_VRF_PATH.w_enB0;
-  assign rvs_if.rt_vrf_data_rob2rt[1].rt_strobe  = `RT_VRF_PATH.w_enB1;
-  assign rvs_if.rt_vrf_data_rob2rt[2].rt_strobe  = `RT_VRF_PATH.w_enB2;
-  assign rvs_if.rt_vrf_data_rob2rt[3].rt_strobe  = `RT_VRF_PATH.w_enB3;
 
-  assign rvs_if.wr_vxsat_valid[0] = `RT_VXSAT_PATH.w_valid0_chkTrap & `RT_VXSAT_PATH.w_vxsat0;
-  assign rvs_if.wr_vxsat_valid[1] = `RT_VXSAT_PATH.w_valid1_chkTrap & `RT_VXSAT_PATH.w_vxsat1;
-  assign rvs_if.wr_vxsat_valid[2] = `RT_VXSAT_PATH.w_valid2_chkTrap & `RT_VXSAT_PATH.w_vxsat2;
-  assign rvs_if.wr_vxsat_valid[3] = `RT_VXSAT_PATH.w_valid3_chkTrap & `RT_VXSAT_PATH.w_vxsat3;
-
-  assign rvs_if.wr_vxsat[0] = `RT_VXSAT_PATH.w_vxsat0;
-  assign rvs_if.wr_vxsat[1] = `RT_VXSAT_PATH.w_vxsat1;
-  assign rvs_if.wr_vxsat[2] = `RT_VXSAT_PATH.w_vxsat2;
-  assign rvs_if.wr_vxsat[3] = `RT_VXSAT_PATH.w_vxsat3;
+  always_comb begin
+    for (int i=0; i<`NUM_RT_UOP; i++) begin
+      rvs_if.wr_vxsat_valid[i] = `RT_VXSAT_PATH.w_valid_chkTrap[i] & `RT_VXSAT_PATH.w_vxsat[i];
+      rvs_if.wr_vxsat[i] = `RT_VXSAT_PATH.w_vxsat[i];
+    end
+  end
     
 // lsu interface -----------------------------------------------------
   // trap pc tracer
@@ -165,12 +167,12 @@ module rvv_backend_top();
   assign rvv_intern_if.cmdq_push = DUT.u_command_queue.push;
 
   // ROB to Retire
-  assign rvv_intern_if.rob2rt_write_valid = DUT.u_retire.rob2rt_write_valid;
-  assign rvv_intern_if.rob2rt_write_data  = DUT.u_retire.rob2rt_write_data;
-  assign rvv_intern_if.rt2rob_write_ready = DUT.u_retire.rt2rob_write_ready;
+  assign rvv_intern_if.rob2rt_write_valid = rt_valid_rob2rt_o;
+  assign rvv_intern_if.rob2rt_write_data  = rt_rob2rt_o;
+  assign rvv_intern_if.rt2rob_write_ready = DUT.rd_ready_rt2rob;
 
   // Decode to UOPs queue
-  assign rvv_intern_if.uop_valid_de2uq  = DUT.u_decode.uop_valid_de2uq;
+  assign rvv_intern_if.uop_valid_de2uq  = DUT.u_decode_de2.de_uop_valid;
   
   // Disptach to each rs
   /* Dispatch unit to ALU reservation station */
