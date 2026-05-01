@@ -597,93 +597,140 @@ def run_full_regression(tests_to_run: List[Tuple[str, str]], spike_bin: str,
     os.makedirs(logs_dir, exist_ok=True)
     logging.info(f"Regression results will be stored in: {output_dir}")
 
-    results = []
+    regression_list_path = os.path.join(output_dir, "regression_list.txt")
 
+    # 1. Preparation Loop: Prepare ELFs and Spike logs
     for i, (target, src_elf) in enumerate(tests_to_run):
-        logging.info(f"[{i+1}/{len(tests_to_run)}] Processing {target}")
-
+        logging.info(f"[{i+1}/{len(tests_to_run)}] Preparing {target}...")
         if src_elf and os.path.exists(src_elf):
-            # Construct a safe filename
-            safe_name = target.replace('//', '').replace(':', '_').replace(
-                '/', '_') + ".elf"
+            safe_name = target.replace('//', '').replace(':', '_').replace('/', '_') + ".elf"
             dest_elf = os.path.join(temp_elf_dir, safe_name)
 
             try:
-                # Remove existing file to avoid permission errors
-                if os.path.exists(dest_elf):
-                    os.remove(dest_elf)
-
+                if os.path.exists(dest_elf): os.remove(dest_elf)
                 shutil.copy2(src_elf, dest_elf)
-                # Force write permissions
-                os.chmod(
-                    dest_elf,
-                    stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP
-                    | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
+                os.chmod(dest_elf, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
 
                 elf_to_run = dest_elf
                 entry_point = get_entry_point(elf_to_run)
 
-                # Generate Spike Log
-                spike_log_path = None
-                if spike_bin:
-                    if target in SPIKE_DENYLIST:
-                        logging.info(
-                            f"  Skipping Spike generation for {target} (in SPIKE_DENYLIST)"
-                        )
-                    else:
-                        spike_log_name = safe_name + ".spike.log"
-                        temp_spike_log = os.path.join(temp_elf_dir,
-                                                      spike_log_name)
+                # Generate Spike Log (Silent)
+                spike_log_path = "NONE"
+                if spike_bin and target not in SPIKE_DENYLIST:
+                    spike_log_name = safe_name + ".spike.log"
+                    temp_spike_log = os.path.join(temp_elf_dir, spike_log_name)
+                    if os.path.exists(temp_spike_log): os.remove(temp_spike_log)
+
+                    # Generate silently
+                    cmd_spike = [
+                        spike_bin, f"-m{get_spike_memory_map_str()}", f"--isa={SPIKE_ISA}",
+                        "--misaligned", "-l", "--log-commits", f"--pc={entry_point}", elf_to_run
+                    ]
+                    try:
+                        with open(os.devnull, 'w') as devnull:
+                            subprocess.run(cmd_spike, stdout=devnull, stderr=devnull, timeout=30)
                         if os.path.exists(temp_spike_log):
-                            os.remove(temp_spike_log)
-
-                        spike_ok = generate_spike_log(spike_bin, elf_to_run,
-                                                      temp_spike_log,
-                                                      entry_point)
-
-                        if os.path.exists(temp_spike_log):
-                            dest_name = spike_log_name if spike_ok else spike_log_name + ".fail"
-                            shutil.copy2(temp_spike_log,
-                                         os.path.join(logs_dir, dest_name))
-
-                            if spike_ok:
-                                spike_log_path = temp_spike_log
-                            else:
-                                logging.warning(
-                                    f"  WARNING: Spike log generation failed/timed out for {target}. Log saved to logs/{dest_name}"
-                                )
+                            shutil.copy2(temp_spike_log, os.path.join(logs_dir, spike_log_name))
+                            spike_log_path = os.path.abspath(temp_spike_log)
+                    except: pass
 
                 tohost_addr = get_tohost_addr(elf_to_run)
-                status, reason, log = run_uvm(elf_to_run,
-                                              spike_log_path,
-                                              target=target,
-                                              mpact_root=mpact_root,
-                                              tohost_addr=tohost_addr)
+                if tohost_addr is None: tohost_addr = 0xFFFFFFFF
+
+                timeout = TIMEOUT_MAP.get(target, 100000)
+
+                # Write to list: ELF TOHOST ENTRY TIMEOUT SPIKE_LOG TARGET
+                with open(regression_list_path, 'a') as f_list:
+                    f_list.write(f"{os.path.abspath(elf_to_run)} {tohost_addr:08x} {entry_point:08x} {timeout} {spike_log_path} {target}\n")
             except Exception as e:
-                status = "FAIL"
-                reason = f"Copy/Setup failed: {e}"
-                log = str(e)
-        else:
-            status = "FAIL"
-            reason = "ELF source not found (Build failed?)"
-            log = ""
+                logging.error(f"Failed to prepare {target}: {e}")
 
-        log_filename = target.replace('//', '').replace(':', '_').replace(
-            '/', '_') + ".log"
-        log_path = os.path.join(logs_dir, log_filename)
+    # 2. Execute Batch UVM Simulation
+    logging.info("--- Starting Batch UVM Regression ---")
 
-        with open(log_path, "w") as f:
-            f.write(log)
+    env = os.environ.copy()
+    env["CORALNPU_MPACT"] = mpact_root
 
-        results.append({
-            "Target": target,
-            "Status": status,
-            "Reason": reason,
-            "Log Path": os.path.join("logs", log_filename)  # Relative path
-        })
-        logging.info(f"  Result: {status} - {reason}")
+    cmd = [
+        "make", "-C", "tests/uvm", "run", 
+        "UVM_VERBOSITY=UVM_LOW",
+        "UVM_TESTNAME=coralnpu_regression_test",
+        f"EXTRA_PLUSARGS=+REGRESSION_LIST={os.path.abspath(regression_list_path)}"
+    ]
 
-    # Write CSV
+    regression_log = os.path.join(logs_dir, "regression.log")
+    results = []
+
+    try:
+        with open(regression_log, 'w') as f_log:
+            process = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+            current_target = None
+            current_test_log = None
+            current_reason = "None"
+
+            for line in process.stdout:
+                f_log.write(line)
+                if current_test_log: current_test_log.write(line)
+
+                # Detect start of test
+                start_match = re.search(r'--- STARTING TEST: (.*?) ---', line)
+                if start_match:
+                    current_target = start_match.group(1)
+                    logging.info(f"Running UVM for {current_target}...")
+
+                    safe_log_name = current_target.replace('//', '').replace(':', '_').replace('/', '_') + ".log"
+                    log_path = os.path.join(logs_dir, safe_log_name)
+                    if current_test_log: current_test_log.close()
+                    current_test_log = open(log_path, 'w')
+                    current_test_log.write(line)
+                    current_reason = "None"
+                    continue
+
+                # Parse for failure reasons
+                if current_target:
+                    # Match UVM_ERROR or UVM_FATAL to capture the reason
+                    err_match = re.search(r"^\s*(UVM_(?:FATAL|ERROR)(?!.*:\s+0\s*$).*)$", line, re.MULTILINE)
+                    if err_match:
+                        current_reason = err_match.group(1).strip().replace(',', ';')
+
+                    # Detect end of test (Success)
+                    if "** UVM TEST PASSED **" in line:
+                        logging.info(f"  Result: PASS - {current_reason}")
+                        results.append({
+                            "Target": current_target, "Status": "PASS", "Reason": current_reason,
+                            "Log Path": os.path.join("logs", os.path.basename(current_test_log.name))
+                        })
+                        current_test_log.close()
+                        current_test_log = None
+                        current_target = None
+
+                    # Detect end of test (Failure)
+                    elif "** UVM TEST FAILED **" in line:
+                        logging.info(f"  Result: FAIL - {current_reason}")
+                        results.append({
+                            "Target": current_target, "Status": "FAIL", "Reason": current_reason,
+                            "Log Path": os.path.join("logs", os.path.basename(current_test_log.name))
+                        })
+                        current_test_log.close()
+                        current_test_log = None
+                        current_target = None
+
+            process.wait()
+            if current_test_log: current_test_log.close()
+    except Exception as e:
+        logging.error(f"Execution failed: {e}")
+
+    # Ensure all tests have a result (even if simulator crashed)
+    completed_targets = {r["Target"] for r in results}
+    for target, _ in tests_to_run:
+        if target not in completed_targets:
+            results.append({
+                "Target": target, "Status": "FAIL", "Reason": "Simulator exited early or crashed",
+                "Log Path": os.path.join("logs", "regression.log")
+            })
+
+    # 3. Finalization
     csv_file = os.path.join(output_dir, "uvm_results.csv")
     with open(csv_file, "w", newline='') as csvfile:
         fieldnames = ["Target", "Status", "Reason", "Log Path"]
@@ -693,9 +740,7 @@ def run_full_regression(tests_to_run: List[Tuple[str, str]], spike_bin: str,
             writer.writerow(row)
 
     logging.info(f"Results written to {csv_file}")
-
-    # Create Zip Archive
-    zip_filename = f"{output_dir}"  # make_archive appends .zip
+    zip_filename = f"{output_dir}"
     logging.info(f"Creating archive {zip_filename}.zip...")
     shutil.make_archive(zip_filename, 'zip', output_dir)
     logging.info(f"Artifact created: {os.path.abspath(zip_filename + '.zip')}")
