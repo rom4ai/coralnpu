@@ -236,6 +236,10 @@ coralnpu_v2_binary(
 coralnpu_v2_sim_test(
     name = "trivial_pass_sim_test",
     srcs = ["sw/trivial_pass_test.cc"],
+    # Pinned to the SPI loader path so we keep regression coverage of the
+    # spi2tlul ELF-load bridge. Every other coralnpu_v2_sim_test uses the
+    # default backdoor loader.
+    loader = "spi",
     deps = [":uart"],
 )
 
