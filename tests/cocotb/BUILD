@@ -574,6 +574,14 @@ coralnpu_v2_binary(
     ],
 )
 
+# This test is used for baseline vector power analysis.
+coralnpu_v2_binary(
+    name = "nop_test",
+    srcs = [
+        "nop_test.cc",
+    ],
+)
+
 coralnpu_v2_binary(
     name = "registers",
     srcs = [
@@ -700,6 +708,33 @@ cocotb_test_suite(
     vcs_defines = VCS_DEFINES,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_verilog_sources = ["//hdl/chisel/src/coralnpu:rvv_core_mini_axi_cc_library_verilog"],
+    verilator_model = ":rvv_core_mini_axi_model",
+)
+
+# This test is used for baseline vector power analysis.
+cocotb_test_suite(
+    name = "nop_stress_test",
+    simulators = [
+        "verilator",
+    ],
+    testcases = [
+        "nop_stress_test",
+    ],
+    testcases_vname = "NOP_STRESS_TESTCASES",
+    tests_kwargs = {
+        "hdl_toplevel": "RvvCoreMiniAxi",
+        "waves": False,
+        "seed": "42",
+        "test_module": ["nop_test.py"],
+        "deps": [
+            "//coralnpu_test_utils:sim_test_fixture",
+            "@bazel_tools//tools/python/runfiles",
+        ],
+        "data": [
+            ":nop_test.elf",
+        ],
+        "size": "medium",
+    },
     verilator_model = ":rvv_core_mini_axi_model",
 )
 

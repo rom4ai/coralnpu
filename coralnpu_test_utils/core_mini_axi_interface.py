@@ -828,6 +828,10 @@ class CoreMiniAxiInterface:
     force the classic AXI bus-write path (`load_elf_axi`) for tests that
     specifically exercise frontdoor loading.
     """
+    # Check environment variable override
+    if os.environ.get("COCOTB_USE_FRONTDOOR") == "1":
+      backdoor = False
+
     if backdoor:
       return await self.load_elf_backdoor(f)
     return await self.load_elf_axi(f)
