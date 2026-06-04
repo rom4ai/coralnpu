@@ -3131,7 +3131,7 @@ module rvv_backend_decode_unit_ari
   // Full RVV mask/tail/vstart/multi-LMUL support deferred to upper bound
   // VEML initial bring-up scope: unmasked, vstart=0, LMUL1, full-vl only.
   // Partial-vl (vl < VLENW) rejected: EML wrapper writes all lanes with
-  // w_valid=1 but does not implement tail merge (see AC-5).
+  // w_valid=1 for all lanes; tail merge not implemented, so full-vl required.
   assign check_eml_legal = is_veml_inst ?
       (inst_vm == 1'b1) && (csr_vstart == '0) && (csr_lmul == LMUL1) &&
       (csr_vl == `VLENW) :

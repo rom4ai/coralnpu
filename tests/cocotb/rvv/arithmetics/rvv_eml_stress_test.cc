@@ -15,8 +15,8 @@
  */
 
 // Stress tests for VEML instruction:
-// - Back-to-back VEML dispatch (task12)
-// - Mixed VEML + standard ALU traffic (task13)
+// - Back-to-back VEML dispatch
+// - Mixed VEML + standard ALU traffic
 
 #include <riscv_vector.h>
 
@@ -38,7 +38,7 @@ float out_mixed_eml[16] __attribute__((section(".data")))
 float out_mixed_fadd[16] __attribute__((section(".data")))
     __attribute__((aligned(16)));
 
-// task12: Back-to-back VEML
+// Back-to-back VEML: two independent VEML ops in sequence.
 static void eml_back_to_back(void) {
   size_t vl = 4;
 
@@ -64,7 +64,7 @@ static void eml_back_to_back(void) {
   __riscv_vse32_v_f32m1(out_b2b_2, vd2_reg, vl);
 }
 
-// task13: Mixed VEML + VFADD
+// Mixed VEML + standard ALU (VFADD) traffic.
 static void eml_mixed_alu(void) {
   size_t vl = 4;
 
