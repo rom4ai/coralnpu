@@ -3129,8 +3129,12 @@ module rvv_backend_decode_unit_ari
   assign check_sew_eml = is_veml_inst ? (csr_sew == SEW32) : 1'b1;
   // VEML initial bring-up scope: unmasked, vstart=0, LMUL1, OPIVV only
   // Full RVV mask/tail/vstart/multi-LMUL support deferred to upper bound
+  // VEML initial bring-up scope: unmasked, vstart=0, LMUL1, full-vl only.
+  // Partial-vl (vl < VLENW) rejected: EML wrapper writes all lanes with
+  // w_valid=1 but does not implement tail merge (see AC-5).
   assign check_eml_legal = is_veml_inst ?
-      (inst_vm == 1'b1) && (csr_vstart == '0) && (csr_lmul == LMUL1) :
+      (inst_vm == 1'b1) && (csr_vstart == '0) && (csr_lmul == LMUL1) &&
+      (csr_vl == `VLENW) :
       1'b1;
 
   // check the validation of EMUL

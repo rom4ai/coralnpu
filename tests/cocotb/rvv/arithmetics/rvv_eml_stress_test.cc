@@ -16,7 +16,7 @@
 
 // Stress tests for VEML instruction:
 // - Back-to-back VEML dispatch (task12)
-// - Mixed VEML + standard ALU traffic with trap-flush (task13)
+// - Mixed VEML + standard ALU traffic (task13)
 
 #include <riscv_vector.h>
 
@@ -38,44 +38,52 @@ float out_mixed_eml[16] __attribute__((section(".data")))
 float out_mixed_fadd[16] __attribute__((section(".data")))
     __attribute__((aligned(16)));
 
-// task12: Back-to-back VEML — two independent VEML ops in sequence.
-// Verifies RS pop works and second VEML starts after first completes.
+// task12: Back-to-back VEML
 static void eml_back_to_back(void) {
   size_t vl = 4;
 
-  // Bind operands to fixed registers matching VEML_ENC below
-  register vfloat32m1_t vs1_reg asm("v1") = __riscv_vle32_v_f32m1(in_buf_1, vl);
-  register vfloat32m1_t vs2_reg asm("v2") = __riscv_vle32_v_f32m1(in_buf_2, vl);
-  (void)vs1_reg; (void)vs2_reg;  // used via fixed-register asm clobbers
+  // Load operands into fixed registers v9, v10
+  vfloat32m1_t input_v1 = __riscv_vle32_v_f32m1(in_buf_1, vl);
+  vfloat32m1_t input_v2 = __riscv_vle32_v_f32m1(in_buf_2, vl);
+  register vfloat32m1_t vs1_reg asm("v9") = input_v1;
+  register vfloat32m1_t vs2_reg asm("v10") = input_v2;
+  // Force live: compiler must materialize v9, v10 before VEML
+  __asm__ volatile("" : "+vr"(vs1_reg), "+vr"(vs2_reg));
 
-  // First VEML: v8 = exp(vs2) - ln(vs1), operands in v1, v2
+  // First VEML: v8 = exp(vs2) - ln(vs1), operands in v9,v10
   register vfloat32m1_t vd1_reg asm("v8");
-  __asm__ volatile(".4byte %0\n\t" :: "i"(VEML_ENC(8, 1, 2)) : "v1", "v2", "v8");
+  __asm__ volatile(".4byte %0\n\t" :: "i"(VEML_ENC(8, 9, 10)) : "v8");
   __riscv_vse32_v_f32m1(out_b2b_1, vd1_reg, vl);
 
-  // Second VEML: v16 = exp(vs2) - ln(vs1), same operands still in v1, v2
+  // Force v9,v10 live again (compiler may have reused them)
+  __asm__ volatile("" : "+vr"(vs1_reg), "+vr"(vs2_reg));
+
+  // Second VEML: v16 = exp(vs2) - ln(vs1)
   register vfloat32m1_t vd2_reg asm("v16");
-  __asm__ volatile(".4byte %0\n\t" :: "i"(VEML_ENC(16, 1, 2)) : "v1", "v2", "v16");
+  __asm__ volatile(".4byte %0\n\t" :: "i"(VEML_ENC(16, 9, 10)) : "v16");
   __riscv_vse32_v_f32m1(out_b2b_2, vd2_reg, vl);
 }
 
-// task13: Mixed VEML + standard ALU (VFADD) traffic.
-// VEML uses 8-cycle pipeline; VFADD is single-cycle.
-// Verifies no cross-contamination.
+// task13: Mixed VEML + VFADD
 static void eml_mixed_alu(void) {
   size_t vl = 4;
 
-  register vfloat32m1_t vs1_reg asm("v1") = __riscv_vle32_v_f32m1(in_buf_1, vl);
-  register vfloat32m1_t vs2_reg asm("v2") = __riscv_vle32_v_f32m1(in_buf_2, vl);
-  (void)vs1_reg; (void)vs2_reg;  // used via fixed-register asm clobbers
+  vfloat32m1_t input_v1 = __riscv_vle32_v_f32m1(in_buf_1, vl);
+  vfloat32m1_t input_v2 = __riscv_vle32_v_f32m1(in_buf_2, vl);
+  register vfloat32m1_t vs1_reg asm("v9") = input_v1;
+  register vfloat32m1_t vs2_reg asm("v10") = input_v2;
+  __asm__ volatile("" : "+vr"(vs1_reg), "+vr"(vs2_reg));
 
-  // VFADD: single-cycle standard ALU on different register pair
+  // VFADD v24 = vs1 + vs2  (different dest, sources in v9,v10 preserved)
   vfloat32m1_t vfadd_result = __riscv_vfadd_vv_f32m1(vs1_reg, vs2_reg, vl);
   __riscv_vse32_v_f32m1(out_mixed_fadd, vfadd_result, vl);
 
-  // VEML: 8-cycle pipeline on v1, v2 -> v8
+  // Force v9,v10 live again before VEML
+  __asm__ volatile("" : "+vr"(vs1_reg), "+vr"(vs2_reg));
+
+  // VEML v8 = exp(vs2) - ln(vs1)  (operands in v9,v10)
   register vfloat32m1_t vd_eml_reg asm("v8");
-  __asm__ volatile(".4byte %0\n\t" :: "i"(VEML_ENC(8, 1, 2)) : "v1", "v2", "v8");
+  __asm__ volatile(".4byte %0\n\t" :: "i"(VEML_ENC(8, 9, 10)) : "v8");
   __riscv_vse32_v_f32m1(out_mixed_eml, vd_eml_reg, vl);
 }
 
