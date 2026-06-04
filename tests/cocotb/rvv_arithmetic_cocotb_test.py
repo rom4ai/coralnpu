@@ -2431,10 +2431,10 @@ async def eml_stress_test(dut):
     elf_path = r.Rlocation(
         "coralnpu_hw/tests/cocotb/rvv/arithmetics/" + elf_name
     )
-    await fixture.load_elf_and_lookup_symbols(
-        elf_path,
-        ["in_buf_1", "in_buf_2", "out_buf"],
-    )
+    out_symbols = ["in_buf_1", "in_buf_2",
+                   "out_b2b_1", "out_b2b_2",
+                   "out_mixed_eml", "out_mixed_fadd"]
+    await fixture.load_elf_and_lookup_symbols(elf_path, out_symbols)
 
     np_type = np.float32
     num_test_values = 4
@@ -2445,18 +2445,30 @@ async def eml_stress_test(dut):
 
     await fixture.write("in_buf_1", input_1)
     await fixture.write("in_buf_2", input_2)
-    await fixture.write("out_buf", input_d)
+    for sym in ["out_b2b_1", "out_b2b_2", "out_mixed_eml", "out_mixed_fadd"]:
+        await fixture.write(sym, input_d)
 
     await fixture.run_to_halt()
 
-    actual_output = (await fixture.read("out_buf", 16)).view(np_type)
-    expected_output = (
+    eml_golden = (
         np.exp(input_2)
         - np.log(np.maximum(input_1, np.finfo(np_type).tiny))
     ).astype(np_type)
-
+    fadd_golden = (input_1 + input_2).astype(np_type)
     atol = 5e-3
-    np.testing.assert_allclose(
-        actual_output, expected_output, atol=atol, rtol=1e-4
-    )
+
+    # Verify back-to-back EML: both outputs match golden independently
+    for sym in ["out_b2b_1", "out_b2b_2"]:
+        actual = (await fixture.read(sym, 16)).view(np_type)
+        np.testing.assert_allclose(actual, eml_golden, atol=atol, rtol=1e-4,
+            err_msg=f"{sym}: back-to-back VEML mismatch")
+
+    # Verify mixed traffic: EML output correct, VFADD output correct
+    actual_mixed_eml = (await fixture.read("out_mixed_eml", 16)).view(np_type)
+    np.testing.assert_allclose(actual_mixed_eml, eml_golden, atol=atol, rtol=1e-4,
+        err_msg="out_mixed_eml: mixed-traffic VEML mismatch")
+
+    actual_mixed_fadd = (await fixture.read("out_mixed_fadd", 16)).view(np_type)
+    np.testing.assert_allclose(actual_mixed_fadd, fadd_golden, atol=atol, rtol=1e-4,
+        err_msg="out_mixed_fadd: mixed-traffic VFADD mismatch")
 

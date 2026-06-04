@@ -3120,13 +3120,16 @@ module rvv_backend_decode_unit_ari
     endcase
   end
  
+  // VEML predicate: funct3-scoped to OPIVV to avoid collision with
+  // VREDAND (OPMVV, funct6=000_001) and VFREDUSUM (OPFVV, funct6=000_001)
+  wire is_veml_inst = inst_valid && (inst_funct3 == OPIVV) && (inst_funct6 == VEML);
   // check the validation of EEW
   assign check_sew = (eew_max != EEW_NONE);
   // EML requires SEW=32 (FP32 operands); bypass for non-EML instructions
-  assign check_sew_eml = (inst_funct6 == VEML) ? (csr_sew == SEW32) : 1'b1;
+  assign check_sew_eml = is_veml_inst ? (csr_sew == SEW32) : 1'b1;
   // VEML initial bring-up scope: unmasked, vstart=0, LMUL1, OPIVV only
   // Full RVV mask/tail/vstart/multi-LMUL support deferred to upper bound
-  assign check_eml_legal = (inst_funct6 == VEML) ?
+  assign check_eml_legal = is_veml_inst ?
       (inst_vm == 1'b1) && (csr_vstart == '0) && (csr_lmul == LMUL1) :
       1'b1;
 

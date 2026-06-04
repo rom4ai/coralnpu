@@ -61,6 +61,10 @@ module rvv_backend_alu_unit
   logic                   result_valid_eml;
   PIPE_DATA_t             result_eml;
   logic                   pop_rs_eml;
+  // Standard ALU mux temporaries (module scope for lint portability)
+  logic                   std_pop_rs;
+  logic                   std_result_valid;
+  PU2ROB_t                std_result;
 
 //
 // instance
@@ -236,9 +240,6 @@ module rvv_backend_alu_unit
       pop_rs       = pop_rs_eml;
     end else begin
       // Standard single-cycle units + p1 pipeline
-      logic std_pop_rs;
-      logic std_result_valid;
-      PU2ROB_t std_result;
       std_result_valid = 1'b0;
       std_result       = 'b0;
       std_pop_rs       = 1'b0;
