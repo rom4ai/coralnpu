@@ -19,3 +19,4 @@ tests/uvm/vc_hdrs.h
 __pycache__
 # downloaded bitstreams
 fpga/bitstreams
+.humanize*
