@@ -236,6 +236,7 @@ module rvv_backend_decode_unit_ari_de2
         // allocate OPI* uop to execution unit
         case(inst_funct6)
           VADD,
+          VEML,
           VSUB,
           VRSUB,
           VADC,

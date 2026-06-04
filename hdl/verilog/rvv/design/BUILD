@@ -28,6 +28,8 @@ exports_files(
         "rvv_backend_alu_unit_other.sv",
         "rvv_backend_alu_unit_shift.sv",
         "rvv_backend_decode.sv",
+        "rvv_backend_alu_unit_eml.sv",
+        "EMLUnit.sv",
         "rvv_backend_decode_ctrl.sv",
         "rvv_backend_decode_unit.sv",
         "rvv_backend_decode_unit_ari.sv",

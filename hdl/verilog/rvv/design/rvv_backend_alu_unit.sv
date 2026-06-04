@@ -57,6 +57,10 @@ module rvv_backend_alu_unit
   logic                   alu_uop_p1_en;
   PIPE_DATA_t             alu_uop_p1_in;
   PIPE_DATA_t             alu_uop_p1;
+  // EML signals
+  logic                   result_valid_eml;
+  PIPE_DATA_t             result_eml;
+  logic                   pop_rs_eml;
 
 //
 // instance
@@ -92,6 +96,19 @@ module rvv_backend_alu_unit
     .alu_uop              (alu_uop),
     .result_valid         (result_valid_other_p0),
     .result               (result_other_p0)
+  );
+
+  rvv_backend_alu_unit_eml
+  u_alu_eml (
+    .clk                  (clk),
+    .rst_n                (rst_n),
+    .alu_uop_valid        (alu_uop_valid),
+    .alu_uop              (alu_uop),
+    .pop_rs               (pop_rs_eml),
+    .result_valid         (result_valid_eml),
+    .result               (result_eml),
+    .result_ready         (result_ready),
+    .trap_flush_rvv       (trap_flush_rvv)
   );
 
 // pipeline
@@ -199,52 +216,73 @@ module rvv_backend_alu_unit
 // submit to ROB
 // 
   always_comb begin
-    case({result_valid_p1,(result_valid_addsub_p0|result_valid_shift_p0|result_valid_mask_p0|result_valid_other_p0)})
-      2'b01: begin
-        case(1'b1)
-          result_valid_addsub_p0: begin
-            result_valid = 'b0;
-            result       = 'b0;
-            pop_rs       = 1'b1;
-          end
-          result_valid_shift_p0: begin
-            result_valid = 1'b1;
-            result       = result_shift_p0;
-            pop_rs       = result_ready;
-          end
-          result_valid_other_p0: begin
-            result_valid = 1'b1;
-            result       = result_other_p0;
-            pop_rs       = result_ready;
-          end
-          result_valid_mask_p0: begin
-            result_valid = 1'b1;
-            result       = result_mask_p0;
-            pop_rs       = result_ready;
-          end
-          default: begin
-            result_valid = 'b0;
-            result       = 'b0;
-            pop_rs       = 'b0;
-          end
-        endcase
-      end
-      2'b10: begin
-        result_valid = 1'b1;
-        result       = result_p1;
-        pop_rs       = 'b0;
-      end
-      2'b11: begin
-        result_valid = 1'b1;
-        result       = result_p1;
-        pop_rs       = result_ready;
-      end
-      default: begin  // 2'b00
-        result_valid = 'b0;
-        result       = 'b0;
-        pop_rs       = 'b0;
-      end
-    endcase
+    result_valid = 1'b0;
+    result       = 'b0;
+    pop_rs       = 1'b0;
+
+    // EML result: multi-cycle, bypasses pipeline, highest priority
+    if (result_valid_eml) begin
+      result_valid = 1'b1;
+      result.rob_entry           = result_eml.rob_entry;
+      result.w_data              = result_eml.w_data;
+      result.w_valid             = result_eml.w_valid;
+      result.vsaturate           = result_eml.vsat_cout.vsaturate;
+    `ifdef TB_SUPPORT
+      result.uop_pc              = result_eml.uop_pc;
+    `endif
+    `ifdef ZVE32F_ON
+      result.fpexp               = '0;
+    `endif
+      pop_rs       = pop_rs_eml;
+    end else begin
+      // Standard single-cycle units + p1 pipeline
+      case({result_valid_p1,(result_valid_addsub_p0|result_valid_shift_p0|result_valid_mask_p0|result_valid_other_p0)})
+        2'b01: begin
+          case(1'b1)
+            result_valid_addsub_p0: begin
+              result_valid = 'b0;
+              result       = 'b0;
+              pop_rs       = 1'b1;
+            end
+            result_valid_shift_p0: begin
+              result_valid = 1'b1;
+              result       = result_shift_p0;
+              pop_rs       = result_ready;
+            end
+            result_valid_other_p0: begin
+              result_valid = 1'b1;
+              result       = result_other_p0;
+              pop_rs       = result_ready;
+            end
+            result_valid_mask_p0: begin
+              result_valid = 1'b1;
+              result       = result_mask_p0;
+              pop_rs       = result_ready;
+            end
+            default: begin
+              result_valid = 'b0;
+              result       = 'b0;
+              pop_rs       = 'b0;
+            end
+          endcase
+        end
+        2'b10: begin
+          result_valid = 1'b1;
+          result       = result_p1;
+          pop_rs       = 'b0;
+        end
+        2'b11: begin
+          result_valid = 1'b1;
+          result       = result_p1;
+          pop_rs       = result_ready;
+        end
+        default: begin  // 2'b00
+          result_valid = 'b0;
+          result       = 'b0;
+          pop_rs       = 'b0;
+        end
+      endcase
+    end
   end
 
 endmodule

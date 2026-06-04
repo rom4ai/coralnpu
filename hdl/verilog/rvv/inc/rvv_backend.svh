@@ -186,6 +186,7 @@ typedef enum logic [3:0] {
 // funct6
   // OPI* instructions
   parameter VADD            =   6'b000_000;
+  parameter VEML            =   6'b000_001;
   parameter VSUB            =   6'b000_010;
   parameter VRSUB           =   6'b000_011;
   parameter VMINU           =   6'b000_100;
