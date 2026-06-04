@@ -164,7 +164,7 @@ module rvv_backend_alu_unit_eml
     assign result.uop_pc          = captured_uop.uop_pc;
   `endif
     assign result.rob_entry       = captured_uop.rob_entry;
-    assign result.opcode          = ADDSUB_VADD;  // placeholder, EML doesn't use addsub opcode
+    assign result.opcode          = ADDSUB_VADD;  // EML bypasses addsub pipeline; use uop_funct6/funct3 for identification
     assign result.uop_funct6      = captured_uop.uop_funct6;
     assign result.uop_funct3      = captured_uop.uop_funct3;
     assign result.is_addsub       = 1'b0;

@@ -3127,11 +3127,10 @@ module rvv_backend_decode_unit_ari
   assign check_sew = (eew_max != EEW_NONE);
   // EML requires SEW=32 (FP32 operands); bypass for non-EML instructions
   assign check_sew_eml = is_veml_inst ? (csr_sew == SEW32) : 1'b1;
-  // VEML initial bring-up scope: unmasked, vstart=0, LMUL1, OPIVV only
-  // Full RVV mask/tail/vstart/multi-LMUL support deferred to upper bound
-  // VEML initial bring-up scope: unmasked, vstart=0, LMUL1, full-vl only.
-  // Partial-vl (vl < VLENW) rejected: EML wrapper writes all lanes with
-  // w_valid=1 for all lanes; tail merge not implemented, so full-vl required.
+  // VEML initial bring-up restrictions: unmasked, vstart=0, LMUL1, full-vl only.
+  // Partial-vl rejected because EML wrapper writes all lanes with w_valid=1 and
+  // tail merge is not implemented. Full RVV mask/tail/vstart/multi-LMUL support
+  // deferred to upper bound scope.
   assign check_eml_legal = is_veml_inst ?
       (inst_vm == 1'b1) && (csr_vstart == '0) && (csr_lmul == LMUL1) &&
       (csr_vl == `VLENW) :
