@@ -85,10 +85,9 @@ module rvv_backend_alu_unit_eml
   assign  vs2_eew        = alu_uop.vs2_eew;
 
 // --- opcode detection ---
-  // EML operations: uses OPFVV funct3 with a custom funct6 encoding
-  // For now, accept any opcode dispatched to this unit
-  // The dispatch logic ensures only EML ops arrive here
-  wire is_eml_op = 1'b1; // This unit only handles EML operations
+  // EML operations: funct6=VEML (000_001), funct3=OPIVV (000)
+  // Gate on encoding to prevent non-VEML uops from being captured
+  wire is_eml_op = (alu_uop.uop_funct6 == VEML) && (alu_uop.uop_funct3 == OPIVV);
 
 // --- state machine ---
   always_ff @(posedge clk or negedge rst_n) begin
@@ -126,6 +125,15 @@ module rvv_backend_alu_unit_eml
       end
     end
   end
+
+  // mask/tail/vstart guard: initial bring-up requires unmasked, vstart=0
+  // Full RVV mask/tail/vstart merge deferred to upper bound scope
+  `ifdef RVV_ASSERT__SVH
+    `rvv_assert_fatal(~(alu_uop_valid && is_eml_op && !busy) || (alu_uop.vm == 1'b1),
+      "EML: masked operations not supported in initial bring-up")
+    `rvv_assert_fatal(~(alu_uop_valid && is_eml_op && !busy) || (alu_uop.vstart == '0),
+      "EML: non-zero vstart not supported in initial bring-up")
+  `endif
 
   // pop_rs: accept new uop when not busy
   assign pop_rs = !busy && alu_uop_valid && is_eml_op;
@@ -166,7 +174,7 @@ module rvv_backend_alu_unit_eml
     assign result.vm              = captured_uop.vm;
     assign result.vxrm            = captured_uop.vxrm;
     assign result.vs2_eew         = captured_uop.vs2_eew;
-    assign result.w_valid         = 1'b0;
+    assign result.w_valid         = 1'b1;
     assign result.src2_sgn        = '0;
     assign result.src1_sgn        = '0;
     assign result.last_uop_valid  = captured_uop.last_uop_valid;

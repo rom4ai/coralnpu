@@ -690,6 +690,42 @@ cocotb_test_suite(
     verilator_model = ":rvv_core_mini_axi_model",
 )
 
+RVV_EML_TESTCASES = [
+    "eml_vv_test",
+]
+
+cocotb_test_suite(
+    name = "rvv_eml_cocotb_test",
+    simulators = [
+        "verilator",
+        "vcs",
+    ],
+    testcases = RVV_EML_TESTCASES,
+    testcases_vname = "RVV_EML_TESTCASES",
+    tests_kwargs = {
+        "hdl_toplevel": "RvvCoreMiniAxi",
+        "waves": False,
+        "seed": "42",
+        "test_module": ["rvv_eml_cocotb_test.py"],
+        "deps": [
+            "//coralnpu_test_utils:sim_test_fixture",
+            "@bazel_tools//tools/python/runfiles",
+            requirement("tqdm"),
+        ],
+        "data": [
+            "//tests/cocotb/rvv/arithmetics:rvv_arith_tests",
+        ],
+        "default_testcase_size": "medium",
+        "size": "large",
+    },
+    vcs_build_args = VCS_BUILD_ARGS,
+    vcs_data = ["//tests/cocotb/rvv/arithmetics:rvv_arith_tests"] + VCS_COMMON_DATA,
+    vcs_defines = VCS_DEFINES,
+    vcs_test_args = VCS_TEST_ARGS,
+    vcs_verilog_sources = ["//hdl/chisel/src/coralnpu:rvv_core_mini_axi_cc_library_verilog"],
+    verilator_model = ":rvv_core_mini_axi_model",
+)
+
 pkg_zip(
     name = "rvv_test_binaries",
     srcs = [

@@ -71,6 +71,7 @@ module rvv_backend_decode_unit_ari
   logic                               check_vs2_align;
   logic                               check_vs1_align;
   logic                               check_sew;
+  logic                               check_sew_eml;
   logic                               check_lmul;
   logic                               check_vl_not_0;
   logic                               check_vstart_sle_vl;
@@ -138,6 +139,7 @@ module rvv_backend_decode_unit_ari
         // OPI* instruction
         case(inst_funct6)
           VADD,
+          VEML,
           VADC,
           VAND,
           VOR,
@@ -1751,6 +1753,7 @@ module rvv_backend_decode_unit_ari
         // OPI* instruction
         case(inst_funct6)
           VADD,
+          VEML,
           VSUB,
           VRSUB,
           VADC,
@@ -2559,6 +2562,7 @@ module rvv_backend_decode_unit_ari
       OPIVV: begin
         case(inst_funct6)
           VADD,
+          VEML,
           VSUB,
           VAND,
           VOR,
@@ -3046,7 +3050,7 @@ module rvv_backend_decode_unit_ari
   end
 
   //check common requirements for all instructions
-  assign check_common = check_vd_align&check_vs2_align&check_vs1_align&check_sew&check_lmul
+  assign check_common = check_vd_align&check_vs2_align&check_vs1_align&check_sew&check_sew_eml&check_lmul
                       `ifdef ZVE32F_ON
                         &check_frm
                       `endif
@@ -3117,9 +3121,11 @@ module rvv_backend_decode_unit_ari
  
   // check the validation of EEW
   assign check_sew = (eew_max != EEW_NONE);
-    
+  // EML requires SEW=32 (FP32 operands); bypass for non-EML instructions
+  assign check_sew_eml = (inst_funct6 == VEML) ? (csr_sew == SEW32) : 1'b1;
+
   // check the validation of EMUL
-  assign check_lmul = (emul_max != EMUL_NONE); 
+  assign check_lmul = (emul_max != EMUL_NONE);
   
   // effect vstart
   always_comb begin

@@ -1404,6 +1404,20 @@ filegroup(
     ],
 )
 
+coralnpu_v2_binary(
+    name = "rvv_eml_test",
+    srcs = ["rvv_eml_test.cc"],
+    defines = [
+        "ZVE32F_ON",
+        "TEST_FLOAT",
+        "TEST_EML",
+        "SIGN_f=2",
+    ],
+    deps = [
+        "//coralnpu_test_utils:rvv_cpp_util",
+    ],
+)
+
 filegroup(
     name = "rvv_arith_tests",
     srcs = [
@@ -1436,5 +1450,6 @@ filegroup(
         "vnsrl_test.elf",
         ":rvv_mixed_sign_same_width_type_binary_vx_cases",
         ":rvv_same_type_binary_vx_cases",
+        ":rvv_eml_test.elf",
     ],
 )

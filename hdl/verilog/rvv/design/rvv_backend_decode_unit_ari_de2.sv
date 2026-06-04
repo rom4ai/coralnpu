@@ -479,14 +479,15 @@ module rvv_backend_decode_unit_ari_de2
   // update uop class
   always_comb begin
     for(int i=0;i<`NUM_DE_UOP;i++) begin: GET_UOP_CLASS
-      // initial 
+      // initial
       uop_class[i] = XXX;
-      
+
       case(1'b1)
         valid_opi: begin
           // OPI*
           case(inst_funct6)
             VADD,
+            VEML,
             VSUB,
             VRSUB,
             VADC,

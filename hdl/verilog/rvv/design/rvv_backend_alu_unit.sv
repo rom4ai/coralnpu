@@ -235,6 +235,10 @@ module rvv_backend_alu_unit
     `endif
       pop_rs       = pop_rs_eml;
     end else begin
+      // EML acceptance: pop RS when wrapper accepts a uop (cycle 0 of 8-cycle pipeline)
+      if (pop_rs_eml) begin
+        pop_rs = 1'b1;
+      end
       // Standard single-cycle units + p1 pipeline
       case({result_valid_p1,(result_valid_addsub_p0|result_valid_shift_p0|result_valid_mask_p0|result_valid_other_p0)})
         2'b01: begin
