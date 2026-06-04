@@ -235,57 +235,54 @@ module rvv_backend_alu_unit
     `endif
       pop_rs       = pop_rs_eml;
     end else begin
-      // EML acceptance: pop RS when wrapper accepts a uop (cycle 0 of 8-cycle pipeline)
-      if (pop_rs_eml) begin
-        pop_rs = 1'b1;
-      end
       // Standard single-cycle units + p1 pipeline
+      logic std_pop_rs;
+      logic std_result_valid;
+      PU2ROB_t std_result;
+      std_result_valid = 1'b0;
+      std_result       = 'b0;
+      std_pop_rs       = 1'b0;
       case({result_valid_p1,(result_valid_addsub_p0|result_valid_shift_p0|result_valid_mask_p0|result_valid_other_p0)})
         2'b01: begin
           case(1'b1)
             result_valid_addsub_p0: begin
-              result_valid = 'b0;
-              result       = 'b0;
-              pop_rs       = 1'b1;
+              std_pop_rs = 1'b1;
             end
             result_valid_shift_p0: begin
-              result_valid = 1'b1;
-              result       = result_shift_p0;
-              pop_rs       = result_ready;
+              std_result_valid = 1'b1;
+              std_result       = result_shift_p0;
+              std_pop_rs       = result_ready;
             end
             result_valid_other_p0: begin
-              result_valid = 1'b1;
-              result       = result_other_p0;
-              pop_rs       = result_ready;
+              std_result_valid = 1'b1;
+              std_result       = result_other_p0;
+              std_pop_rs       = result_ready;
             end
             result_valid_mask_p0: begin
-              result_valid = 1'b1;
-              result       = result_mask_p0;
-              pop_rs       = result_ready;
+              std_result_valid = 1'b1;
+              std_result       = result_mask_p0;
+              std_pop_rs       = result_ready;
             end
             default: begin
-              result_valid = 'b0;
-              result       = 'b0;
-              pop_rs       = 'b0;
             end
           endcase
         end
         2'b10: begin
-          result_valid = 1'b1;
-          result       = result_p1;
-          pop_rs       = 'b0;
+          std_result_valid = 1'b1;
+          std_result       = result_p1;
         end
         2'b11: begin
-          result_valid = 1'b1;
-          result       = result_p1;
-          pop_rs       = result_ready;
+          std_result_valid = 1'b1;
+          std_result       = result_p1;
+          std_pop_rs       = result_ready;
         end
         default: begin  // 2'b00
-          result_valid = 'b0;
-          result       = 'b0;
-          pop_rs       = 'b0;
         end
       endcase
+      // Merge EML pop with standard pop — no overwrite
+      result_valid = std_result_valid;
+      result       = std_result;
+      pop_rs       = pop_rs_eml | std_pop_rs;
     end
   end
 

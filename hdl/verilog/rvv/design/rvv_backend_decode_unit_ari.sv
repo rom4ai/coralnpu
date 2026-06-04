@@ -72,6 +72,7 @@ module rvv_backend_decode_unit_ari
   logic                               check_vs1_align;
   logic                               check_sew;
   logic                               check_sew_eml;
+  logic                               check_eml_legal;
   logic                               check_lmul;
   logic                               check_vl_not_0;
   logic                               check_vstart_sle_vl;
@@ -3050,7 +3051,7 @@ module rvv_backend_decode_unit_ari
   end
 
   //check common requirements for all instructions
-  assign check_common = check_vd_align&check_vs2_align&check_vs1_align&check_sew&check_sew_eml&check_lmul
+  assign check_common = check_vd_align&check_vs2_align&check_vs1_align&check_sew&check_sew_eml&check_eml_legal&check_lmul
                       `ifdef ZVE32F_ON
                         &check_frm
                       `endif
@@ -3123,6 +3124,11 @@ module rvv_backend_decode_unit_ari
   assign check_sew = (eew_max != EEW_NONE);
   // EML requires SEW=32 (FP32 operands); bypass for non-EML instructions
   assign check_sew_eml = (inst_funct6 == VEML) ? (csr_sew == SEW32) : 1'b1;
+  // VEML initial bring-up scope: unmasked, vstart=0, LMUL1, OPIVV only
+  // Full RVV mask/tail/vstart/multi-LMUL support deferred to upper bound
+  assign check_eml_legal = (inst_funct6 == VEML) ?
+      (inst_vm == 1'b1) && (csr_vstart == '0) && (csr_lmul == LMUL1) :
+      1'b1;
 
   // check the validation of EMUL
   assign check_lmul = (emul_max != EMUL_NONE);

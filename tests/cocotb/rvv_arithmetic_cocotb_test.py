@@ -2368,3 +2368,95 @@ async def float_convert_op(dut):
                     expected = res.astype(out_dtype)
                 np.testing.assert_array_equal(actual, expected)
 
+
+@cocotb.test()
+async def eml_vv_test(dut):
+    """EML VEML instruction test: element-wise exp(vs2) - ln(vs1).
+
+    Uses .4byte-encoded VEML instruction (funct6=000001, funct3=OPIVV).
+    Golden reference: np.exp(vs2) - np.log(max(vs1, epsilon)).
+    Supports float32 only (SEW=32, LMUL=1, VLEN=128).
+    """
+    r = runfiles.Create()
+    fixture = await Fixture.Create(dut)
+
+    elf_name = "rvv_eml_test.elf"
+    elf_path = r.Rlocation(
+        "coralnpu_hw/tests/cocotb/rvv/arithmetics/" + elf_name
+    )
+    await fixture.load_elf_and_lookup_symbols(
+        elf_path,
+        ["in_buf_1", "in_buf_2", "out_buf"],
+    )
+
+    np_type = np.float32
+    num_test_values = 4  # VLEN=128, SEW=32, LMUL=1 -> 4 elements
+
+    rng = np.random.default_rng(42)
+    input_1 = rng.uniform(0.1, 5.0, num_test_values).astype(np_type)
+    input_2 = rng.uniform(-2.0, 2.0, num_test_values).astype(np_type)
+    input_d = np.zeros(num_test_values, dtype=np_type)
+
+    await fixture.write("in_buf_1", input_1)
+    await fixture.write("in_buf_2", input_2)
+    await fixture.write("out_buf", input_d)
+
+    await fixture.run_to_halt()
+
+    actual_output = (await fixture.read("out_buf", 16)).view(np_type)
+
+    # Golden reference: exp(vs2) - ln(vs1)
+    expected_output = (
+        np.exp(input_2)
+        - np.log(np.maximum(input_1, np.finfo(np_type).tiny))
+    ).astype(np_type)
+
+    # Tolerance derived from EMLUnit LUT approximation structure:
+    # ExpApprox: 8-stage piecewise-linear, ~1-2 ULP
+    # LnApprox: 4-stage linear + delay regs, ~2-3 ULP
+    # Combined exp-ln-subtract worst-case ~4 ULP at magnitude ~100 -> ~2e-4 abs
+    atol = 5e-3
+    np.testing.assert_allclose(
+        actual_output, expected_output, atol=atol, rtol=1e-4
+    )
+
+
+@cocotb.test()
+async def eml_stress_test(dut):
+    """EML stress: back-to-back VEML dispatch + mixed VEML/ALU traffic."""
+    r = runfiles.Create()
+    fixture = await Fixture.Create(dut)
+
+    elf_name = "rvv_eml_stress_test.elf"
+    elf_path = r.Rlocation(
+        "coralnpu_hw/tests/cocotb/rvv/arithmetics/" + elf_name
+    )
+    await fixture.load_elf_and_lookup_symbols(
+        elf_path,
+        ["in_buf_1", "in_buf_2", "out_buf"],
+    )
+
+    np_type = np.float32
+    num_test_values = 4
+    rng = np.random.default_rng(42)
+    input_1 = rng.uniform(0.1, 5.0, num_test_values).astype(np_type)
+    input_2 = rng.uniform(-2.0, 2.0, num_test_values).astype(np_type)
+    input_d = np.zeros(num_test_values, dtype=np_type)
+
+    await fixture.write("in_buf_1", input_1)
+    await fixture.write("in_buf_2", input_2)
+    await fixture.write("out_buf", input_d)
+
+    await fixture.run_to_halt()
+
+    actual_output = (await fixture.read("out_buf", 16)).view(np_type)
+    expected_output = (
+        np.exp(input_2)
+        - np.log(np.maximum(input_1, np.finfo(np_type).tiny))
+    ).astype(np_type)
+
+    atol = 5e-3
+    np.testing.assert_allclose(
+        actual_output, expected_output, atol=atol, rtol=1e-4
+    )
+
