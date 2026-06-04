@@ -1442,6 +1442,19 @@ coralnpu_v2_binary(
     ],
 )
 
+coralnpu_v2_binary(
+    name = "rvv_eml_illegal_test",
+    srcs = ["rvv_eml_illegal_test.cc"],
+    defines = [
+        "ZVE32F_ON",
+        "TEST_FLOAT",
+        "TEST_EML",
+    ],
+    deps = [
+        "//coralnpu_test_utils:rvv_cpp_util",
+    ],
+)
+
 filegroup(
     name = "rvv_arith_tests",
     srcs = [
@@ -1477,5 +1490,6 @@ filegroup(
         ":rvv_eml_test.elf",
         ":rvv_eml_stress_test.elf",
         ":rvv_eml_trap_test.elf",
+        ":rvv_eml_illegal_test.elf",
     ],
 )

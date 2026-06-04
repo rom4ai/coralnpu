@@ -320,6 +320,7 @@ RVV_ARITHMETIC_TESTCASES = [
     "float_convert_op",
     "eml_vv_test",
     "eml_stress_test",
+    "eml_illegal_test",
     ("binary_op_vx", "large"),
 ]
 # END_TESTCASES_FOR_rvv_arithmetic_cocotb_test

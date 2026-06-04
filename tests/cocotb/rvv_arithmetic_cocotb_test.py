@@ -2483,3 +2483,65 @@ async def eml_stress_test(dut):
     np.testing.assert_allclose(actual_mixed_fadd, fadd_golden, atol=atol, rtol=1e-4,
         err_msg="out_mixed_fadd: mixed-traffic VFADD mismatch")
 
+
+@cocotb.test()
+async def eml_illegal_test(dut):
+    fixture, r, rng = await _setup_fixture(dut)
+
+    await fixture.load_elf_and_lookup_symbols(
+        r.Rlocation("coralnpu_hw/tests/cocotb/rvv/arithmetics/rvv_eml_illegal_test.elf"),
+        ["in_buf_1", "in_buf_2", "out_buf"],
+    )
+
+    np_type = np.float32
+    num_test_values = 4
+    rng_np = np.random.default_rng(42)
+    input_1 = rng_np.uniform(0.1, 5.0, num_test_values).astype(np_type)
+    input_2 = rng_np.uniform(-2.0, 2.0, num_test_values).astype(np_type)
+    input_d = np.zeros(num_test_values, dtype=np_type)
+
+    await fixture.write("in_buf_1", input_1)
+    await fixture.write("in_buf_2", input_2)
+    await fixture.write("out_buf", np.zeros(32, dtype=np_type))
+
+    await fixture.run_to_halt()
+
+    actual_all = (await fixture.read("out_buf", 32)).view(np_type)
+
+    # Positive control: out_buf[0..3] = legal VEML result, should be non-trivial
+    expected_legal = (
+        np.exp(input_2) - np.log(np.maximum(input_1, np.finfo(np_type).tiny))
+    ).astype(np_type)
+    atol = 5e-3
+
+    np.testing.assert_allclose(
+        actual_all[0:4], expected_legal, atol=atol, rtol=1e-4,
+        err_msg="Positive control: legal VEML result mismatch")
+
+    # Negative test: masked VEML -> out_buf[4..7] should equal legal result
+    # (instruction rejected, v8 retains previous write)
+    np.testing.assert_allclose(
+        actual_all[4:8], expected_legal, atol=atol, rtol=1e-4,
+        err_msg="Masked VEML should be rejected (v8 unchanged)")
+
+    # Negative test: OPIVX VEML -> out_buf[8..11] should equal legal result
+    np.testing.assert_allclose(
+        actual_all[8:12], expected_legal, atol=atol, rtol=1e-4,
+        err_msg="OPIVX VEML should be rejected (v8 unchanged)")
+
+    # Negative test: SEW=8 VEML -> out_buf[12..15] should equal legal result
+    np.testing.assert_allclose(
+        actual_all[12:16], expected_legal, atol=atol, rtol=1e-4,
+        err_msg="SEW=8 VEML should be rejected (v8 unchanged)")
+
+    # Negative test: SEW=16 VEML -> out_buf[16..19] should equal legal result
+    np.testing.assert_allclose(
+        actual_all[16:20], expected_legal, atol=atol, rtol=1e-4,
+        err_msg="SEW=16 VEML should be rejected (v8 unchanged)")
+
+    # Negative test: partial-vl (vl=2) -> out_buf[20..23] should be 0.0
+    # (different vl, so different sentinel pattern)
+    np.testing.assert_allclose(
+        actual_all[20:24], np.zeros(4, dtype=np_type), atol=atol,
+        err_msg="Partial-vl VEML should be rejected (sentinel=0.0 survived)")
+

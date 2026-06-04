@@ -165,11 +165,11 @@ verilog_library(
         "EMLUnit.sv",
     ],
     visibility = ["//visibility:public"],
+)
 
 vcs_testbench_test(
     name = "eml_unit_tb",
     srcs = ["EMLUnit_tb.sv"],
     module = "EMLUnit_tb",
     deps = ":eml_unit",
-)
 )
