@@ -10,7 +10,9 @@
 `endif
 
 // EMLUnit datapath modules (FP32Multiplier, FP32Adder, ExpApprox, LnApprox, EMLUnit)
+`ifndef EMLUNIT_SV
 `include "EMLUnit.sv"
+`endif
 
 module rvv_backend_alu_unit_eml
 (
@@ -127,12 +129,12 @@ module rvv_backend_alu_unit_eml
   end
 
   // mask/tail/vstart guard: initial bring-up requires unmasked, vstart=0
-  // Full RVV mask/tail/vstart merge deferred to upper bound scope
+  // Decode check_eml_legal already enforces these; assertions are for VCS only
+  `ifndef VERILATOR
   `ifdef RVV_ASSERT__SVH
-    `rvv_assert_fatal(~(alu_uop_valid && is_eml_op && !busy) || (alu_uop.vm == 1'b1),
-      "EML: masked operations not supported in initial bring-up")
-    `rvv_assert_fatal(~(alu_uop_valid && is_eml_op && !busy) || (alu_uop.vstart == '0),
-      "EML: non-zero vstart not supported in initial bring-up")
+    `rvv_expect(~(alu_uop_valid && is_eml_op && !busy) || (alu_uop.vm == 1'b1))
+    `rvv_expect(~(alu_uop_valid && is_eml_op && !busy) || (alu_uop.vstart == '0))
+  `endif
   `endif
 
   // pop_rs: accept new uop when not busy

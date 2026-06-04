@@ -156,3 +156,13 @@ vcs_testbench_test(
     module = "MultiFifo_tb",
     deps = ":multififo",
 )
+
+
+verilog_library(
+    name = "eml_unit",
+    srcs = [
+        "rvv_backend_alu_unit_eml.sv",
+        "EMLUnit.sv",
+    ],
+    visibility = ["//visibility:public"],
+)

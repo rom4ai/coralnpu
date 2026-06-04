@@ -47,6 +47,7 @@ static void eml_back_to_back(void) {
   vfloat32m1_t input_v2 = __riscv_vle32_v_f32m1(in_buf_2, vl);
   register vfloat32m1_t vs1_reg asm("v9") = input_v1;
   register vfloat32m1_t vs2_reg asm("v10") = input_v2;
+
   // Force live: compiler must materialize v9, v10 before VEML
   __asm__ volatile("" : "+vr"(vs1_reg), "+vr"(vs2_reg));
 

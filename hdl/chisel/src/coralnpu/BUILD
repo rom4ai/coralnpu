@@ -138,6 +138,8 @@ chisel_library(
         "//hdl/verilog/rvv/design:rvv_backend_alu_unit_mask_viota.sv",
         "//hdl/verilog/rvv/design:rvv_backend_alu_unit_other.sv",
         "//hdl/verilog/rvv/design:rvv_backend_alu_unit_shift.sv",
+        "//hdl/verilog/rvv/design:rvv_backend_alu_unit_eml.sv",
+        "//hdl/verilog/rvv/design:EMLUnit.sv",
         "//hdl/verilog/rvv/design:rvv_backend_arb.sv",
         "//hdl/verilog/rvv/design:rvv_backend_decode_unit_ari_de2.sv",
         "//hdl/verilog/rvv/design:rvv_backend_decode_unit_lsu_de2.sv",
