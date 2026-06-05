@@ -2390,20 +2390,12 @@ async def eml_vv_test(dut):
     await fixture.write("in_buf_2", input_2)
     await fixture.write("out_buf", np.zeros(16, dtype=np_type))
 
-    # Run simulation to completion with STOP_COND=0 to suppress
-    # the regfile scoreboard assertion $fatal.
+    # Run simulation to completion
     await fixture.run_to_halt()
 
-    actual_out = (await fixture.read("out_buf", 16)).view(np_type)
-
-    import logging
-    logging.warning(f"VEML out_buf[0:5] = {actual_out[0:5]}")
-    # Self-check: ELF writes sentinel to out_buf[4]
-    # 1234.5 = success (non-zero result), -999.0 = failure (zero result)
-    if actual_out[4] == -999.0:
-        raise AssertionError("VEML self-check FAILED: result is all zeros")
-    if actual_out[4] != 1234.5:
-        raise AssertionError(f"Unexpected sentinel: {actual_out[4]}")
+    # Read 24 bytes for self-check sentinel at index 4
+    actual_out = (await fixture.read("out_buf", 24)).view(np_type)
+    assert actual_out[4] == 1234.5, f"VEML FAIL: sentinel={actual_out[4]}"
 @cocotb.test()
 async def eml_stress_test(dut):
     """EML stress: back-to-back VEML dispatch + mixed VEML/ALU traffic."""
