@@ -19,6 +19,7 @@ import chisel3._
 object RvvAluOp extends ChiselEnum {
   // TODO(davidgao): values here can be tweaked.
   val VADD  = Value
+  val VEML  = Value
   val VSUB  = Value
   val VRSUB = Value
 

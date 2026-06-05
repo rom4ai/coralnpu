@@ -186,6 +186,7 @@ class RvvS1DecodeInstructionBase {
     val no_overlap = (vd =/= vs1 && vd =/= vs2)
     val op = MuxUpTo1H(MakeInvalid(RvvAluOp()), Seq(
       // We're assuming all instructions are mask-optional unless the spec says otherwise.
+      (f6vm === BitPat("b000001_?")) -> MakeValid(RvvAluOp.VEML),
       (f6vm === BitPat("b000000_?")) -> MakeValid(RvvAluOp.VADD),
       (f6vm === BitPat("b000010_?")) -> MakeValid(RvvAluOp.VSUB),
       // No VRSUB.
