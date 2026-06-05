@@ -330,7 +330,8 @@ class DispatchV2(p: Parameters) extends Dispatch(p) {
   // Scalar Scoreboard
   val rdAddr = io.inst.map(_.bits.inst(11,7))
   val writesRd = decodedInsts.map(d =>
-      (!d.isScalarStore() && !d.isCondBr()) ||
+      (!d.isScalarStore() && !d.isCondBr() &&
+       !d.rvv.map(_.valid && !d.rvv.get.bits.writesRd()).getOrElse(false.B)) ||
       (d.isFloat() && d.floatWritesRd()) ||
       d.rvvWritesRd()
   )

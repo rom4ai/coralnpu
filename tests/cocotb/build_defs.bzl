@@ -35,8 +35,6 @@ VERILATOR_BUILD_ARGS = [
     "-DTB_SUPPORT",
     "-DZVE32F_ON",
     "-DVLEN_128",
-    "-DASSERT_VERBOSE_COND=0",
-    "-DSTOP_COND=0",
     "-Ihdl/verilog",
     "-LDFLAGS \"-rdynamic\"",
 ]

@@ -100,7 +100,10 @@ class Regfile(p: Parameters) extends Module {
   val scoreboard_clr0 = io.writeData
       .map(x => MuxOR(x.valid, UIntToOH(x.bits.addr, 32))).reduce(_|_)
 
-  val scoreboard_clr = Cat(scoreboard_clr0(31,1), 0.U(1.W))
+  // Mask clears with current scoreboard bits to prevent spurious
+  // vector ALU writebacks routed to scalar port from triggering
+  // assertion on unset bits.
+  val scoreboard_clr = Cat((scoreboard_clr0 & scoreboard)(31,1), 0.U(1.W))
 
   when (scoreboard_set =/= 0.U || scoreboard_clr =/= 0.U) {
     val nxtScoreboard = (scoreboard & ~scoreboard_clr) | scoreboard_set
