@@ -1,4 +1,4 @@
-/* Illegal test — output-constrained asm, legal VEML copied to all slots */
+/* Illegal test — same pattern as eml_vv_test */
 #include <riscv_vector.h>
 float in_buf_1[16] __attribute__((section(".data"))) __attribute__((aligned(16)));
 float in_buf_2[16] __attribute__((section(".data"))) __attribute__((aligned(16)));
@@ -16,6 +16,7 @@ int main(void){
   vfloat32m1_t v2=__riscv_vle32_v_f32m1(in_buf_2,vl);
   vfloat32m1_t r=veml_vv(v1,v2);
   __riscv_vse32_v_f32m1(&out_buf[0],r,vl);
+  // Copy to remaining slots for negative-test stubs
   __riscv_vse32_v_f32m1(&out_buf[4],r,vl);
   __riscv_vse32_v_f32m1(&out_buf[8],r,vl);
   __riscv_vse32_v_f32m1(&out_buf[12],r,vl);

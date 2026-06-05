@@ -1,4 +1,4 @@
-/* Stress test — all veml_vv calls use output-constrained asm */
+/* Stress test — exact same pattern as eml_vv_test (no register asm for VLE32) */
 #include <riscv_vector.h>
 float in_buf_1[16] __attribute__((section(".data"))) __attribute__((aligned(16)));
 float in_buf_2[16] __attribute__((section(".data"))) __attribute__((aligned(16)));
