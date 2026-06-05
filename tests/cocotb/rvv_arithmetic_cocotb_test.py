@@ -2393,7 +2393,9 @@ async def eml_vv_test(dut):
     # Run simulation to completion
     await fixture.run_to_halt()
 
-    # Read 24 bytes for self-check sentinel at index 4
+    # Probe EML signals to debug zero-result
+    alu_valid = dut.core.score.alu_unit.alu_uop_valid.value
+    # Read actual output
     actual_out = (await fixture.read("out_buf", 24)).view(np_type)
     assert actual_out[4] == 1234.5, f"VEML FAIL: sentinel={actual_out[4]}"
 @cocotb.test()
