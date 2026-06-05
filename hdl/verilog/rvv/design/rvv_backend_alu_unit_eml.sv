@@ -166,24 +166,23 @@ module rvv_backend_alu_unit_eml
     assign result.uop_pc          = captured_uop.uop_pc;
   `endif
     assign result.rob_entry       = captured_uop.rob_entry;
-    assign result.opcode          = ADDSUB_VADD;  // EML bypasses addsub pipeline; use uop_funct6/funct3 for identification
+    assign result.opcode          = ADDSUB_VADD;
     assign result.uop_funct6      = captured_uop.uop_funct6;
     assign result.uop_funct3      = captured_uop.uop_funct3;
-    assign result.is_addsub       = 1'b0;
-    assign result.is_cmp          = 1'b0;
+    assign result.is_addsub       = 1'b1;
+    assign result.is_cmp          = captured_uop.is_cmp;
     assign result.vstart          = captured_uop.vstart;
     assign result.vl              = captured_uop.vl;
     assign result.vm              = captured_uop.vm;
     assign result.vxrm            = captured_uop.vxrm;
     assign result.vs2_eew         = captured_uop.vs2_eew;
-    assign result.w_valid         = 1'b1;
+    assign result.w_valid         = captured_uop.vm;  // unmasked: vm=1 per check_eml_legal
     assign result.src2_sgn        = '0;
     assign result.src1_sgn        = '0;
     assign result.last_uop_valid  = captured_uop.last_uop_valid;
     assign result.uop_index       = captured_uop.uop_index;
     assign result.w_data          = eml_result;
     assign result.vsat_cout.cout  = '0;
-    // union fields: v0_src2 and vd_src1
     assign result.v0_src2.v0      = captured_uop.v0_data;
     assign result.vd_src1.vd      = captured_uop.vd_data;
 
