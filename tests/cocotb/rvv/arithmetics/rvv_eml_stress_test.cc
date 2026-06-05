@@ -1,7 +1,5 @@
-/* Stress test: back-to-back VEML + mixed VEML/VFADD.
-   Data provided by Python backdoor. ELF does NOT overwrite buffers. */
+/* Stress test — all veml_vv calls use output-constrained asm */
 #include <riscv_vector.h>
-#define VEML_ENC ((0x01UL<<26)|(1UL<<25)|(10UL<<20)|(9UL<<15)|(0UL<<12)|(8UL<<7)|0x57UL)
 float in_buf_1[16] __attribute__((section(".data"))) __attribute__((aligned(16)));
 float in_buf_2[16] __attribute__((section(".data"))) __attribute__((aligned(16)));
 float out_b2b_1[16] __attribute__((section(".data"))) __attribute__((aligned(16)));
@@ -10,8 +8,9 @@ float out_mixed_fadd[16] __attribute__((section(".data"))) __attribute__((aligne
 float out_mixed_eml[16] __attribute__((section(".data"))) __attribute__((aligned(16)));
 __attribute__((noinline))
 static vfloat32m1_t veml_vv(vfloat32m1_t vs1,vfloat32m1_t vs2){
-  register vfloat32m1_t a asm("v9")=vs1,b asm("v10")=vs2,c asm("v8");
-  __asm__(".4byte %[enc]"::[enc]"i"(VEML_ENC),"vr"(a),"vr"(b):"v8");
+  register vfloat32m1_t c asm("v8"),a asm("v9"),b asm("v10");
+  __asm__("vmv.v.v v9,%[s1]\n\tvmv.v.v v10,%[s2]\n\t.word 0x06a48457"
+    :"=vr"(c),"=vr"(a),"=vr"(b):[s1]"vr"(vs1),[s2]"vr"(vs2));
   return c;
 }
 int main(void){
