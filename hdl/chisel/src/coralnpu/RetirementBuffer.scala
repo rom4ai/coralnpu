@@ -267,11 +267,13 @@ class RetirementBuffer(p: Parameters, mini: Boolean = false) extends Module {
             bufferEntry.idx))).getOrElse(Seq(false.B))
     val vectorWriteIdxMap = io.writeDataVector.map(y => y.map(
         x => x.valid && (
-            (bufferEntry.isVector && !storeInstr && (x.bits.uop_pc === bufferEntry.addr)) ||
+            (bufferEntry.isVector && !storeInstr && (
+                (x.bits.uop_pc === bufferEntry.addr) ||
+                ((x.bits.addr +& p.rvvRegfileBaseAddr.U) === bufferEntry.idx)
+            )) ||
             (!bufferEntry.isVector && ((x.bits.addr +& p.rvvRegfileBaseAddr.U) === bufferEntry.idx))
         )
     )).getOrElse(Seq(false.B))
-    // Check if this entry is the faulting instruction
     val faultingInstr = io.fault.valid && (bufferEntry.addr === faultPc)
     // The entry is active if it's validly enqueued.
     val validBufferEntry = (i.U < instBuffer.io.nEnqueued)
